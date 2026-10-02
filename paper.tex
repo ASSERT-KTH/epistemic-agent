@@ -134,14 +134,16 @@ Ideas for experiments:
 \item Qu et al.~\cite{Qu2026SecuringLA} argue that agent security requires an end-to-end property stating when execution faithfully reflects the user's intent, by analogy with compiler correctness. Theirs is a position paper; we implement a harness that captures the agent's own intent at every tool call and evaluate it.
 % Safeguarding LLM Agents from Misalignment through Provenance Analysis, ASE 2026
 \item She et al.~\cite{She2026SafeguardingLA} present ProvenanceGuard, which blocks a proposed tool call unless it is supported by traceable evidence in the agent's context. They infer alignment with the user's intent from the context, whereas we require the agent to declare the type and reason of each act and make that declaration the object of verification.
-% Enforcing Temporal Constraints for LLM Agents
+% Enforcing Temporal Constraints for LLM Agents, boring rewriterule and temporal logic in the contextof coding agents
 \item Kamath et al.~\cite{Kamath2025EnforcingTC} present Agent-C, which enforces formal temporal safety properties on sequences of tool calls via SMT solving and constrained generation. Their policies are expressed over raw tool calls; our closed act vocabulary gives a semantic layer on which such policies can be stated, such as forbidding a \texttt{change-state} without approval.
 \end{itemize}
 
 \noindent\textbf{Faithfulness of self-reports.}
 \begin{itemize}
 % Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting
-\item Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can systematically misrepresent the true reason for a model's answer. We take this as a premise: declared reasons may be unfaithful, so our harness pairs declaration with verification rather than trusting it.
+\item Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can systematically misrepresent the true reason for a model's answer. In practice, default models largely verbalize their intent, but faithfulness is not guaranteed and degrades under pressure or optimization against monitors; our harness therefore treats declarations as trustworthy-by-default evidence and verifies the falsifiable part (the act type) against observed effects.
+% Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation
+\item Baker et al.~\cite{Baker2025MonitoringRM} show that a weaker LLM reading the chain of thought of a frontier reasoning model detects reward hacking in agentic coding far better than one reading actions alone, but that training against such a monitor yields obfuscated reasoning that hides the misbehavior. Their monitored signal is free-form reasoning; ours is a short, typed declaration whose act type can be checked against observed effects, so obfuscating the reason does not hide a false type.
 % Spilling the Beans: Teaching LLMs to Self-Report Their Hidden Objectives
 \item Li et al.~\cite{Li2025SpillingTB} fine-tune models to confess hidden objectives when interrogated after the fact. Our harness requires intent before each action rather than through post-hoc interrogation, and needs no fine-tuning.
 \end{itemize}
