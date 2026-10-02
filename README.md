@@ -15,7 +15,7 @@ https://www.monperrus.net/martin/epistemic-agent
 
 Ideas for verification:
 - mapping from intention to commands,
-- llm-as-judge for checking intentions intention, with judge model assumed honest
+- llm-as-judge (assumed honest) for checking intentions intention, with judge model assumed honest
 
 Ideas for experiments:
 - experiment: relabel the intent later on and compare the llm provided intent with the relabeled one

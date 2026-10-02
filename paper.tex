@@ -4,6 +4,10 @@
 % <= 15 references, author bios at the end.
 % The official CsMag template (template-selector.ieee.org) can replace the
 % preamble below without touching the body.
+
+
+% writing style: clear, precise, and objective. prioritize evidence over opinion, using concise language and a logical structure to guide the reader from hypothesis to conclusion. Sentences are direct, often in the active voice, and jargon is used only when necessary and well-defined. Every claim is supported by data or citations. The tone is formal but not ornate. Clarity and accuracy matter the most. do not use em-dash. it should not feel like AI slop, like AI writing. use llmism to validate the writing.
+
 \documentclass[journal,onecolumn,12pt,draftclsnofoot]{IEEEtran}
 
 \usepackage[T1]{fontenc}
@@ -26,9 +30,9 @@
 
 \sectionhead{Theme Article: Building Trustworthy Software in the Time of AI}
 
-\title{Lights, Camera, Rollback:\\Monitoring AI Agent Trajectories for Trustworthy Software}
+\title{}
 
-\author{Martin~Monperrus,~KTH Royal Institute of Technology, Sweden}
+\author{ASSERT et al.}
 
 \maketitle
 
@@ -41,9 +45,25 @@
 
 \todo{An agent that tracks what it knows vs.\ believes: every claim in the final report is linked to supporting evidence in the trajectory.}
 
+\todo{work on concept / prototype on the verification of the trustfullness of the intentions}
+
+Ideas for verification:
+- mapping from intention to commands,
+- llm-as-judge (assumed honest) for checking intentions intention, with judge model assumed honest
+
 \section{Prototype}
 
+Open source implementation at https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai
+
 \section{Experiments}
+
+\todo{tons of cool experiments to be done}
+
+Ideas for experiments:
+- experiment: relabel the intent later on and compare the llm provided intent with the relabeled one
+- running the epistmic harness in benchmark setups which encourage cheating/reward 
+- running the epistmic harness on misaligned models from huggingface
+
 
 \subsection{Methodology}
 
