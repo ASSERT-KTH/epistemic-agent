@@ -43,6 +43,55 @@
 
 \section{Concept: The Epistemic Agent}
 
+Every tool call carries three mandatory fields:
+\begin{itemize}
+\item \texttt{command}: the shell command to execute.
+\item \texttt{type}: the kind of act, chosen from a closed vocabulary.
+\item \texttt{reason}: free text stating the intent behind this specific call, not what the command does.
+\end{itemize}
+
+The vocabulary has seven act types:
+\begin{itemize}
+\item \texttt{collect-info}: read-only observation to build understanding.
+\item \texttt{test-hypothesis}: an experiment to confirm or refute a current belief; the reason names the belief and the observation that would refute it.
+\item \texttt{change-state}: a persistent mutation that is part of the deliverable.
+\item \texttt{verify}: re-running a known check on finished work; nothing is in doubt, the goal is evidence.
+\item \texttt{setup}: preparing the environment (installs, scaffolding, fixtures); a means, not the deliverable.
+\item \texttt{revert}: undoing a previous \texttt{change-state} that proved wrong, which makes dead ends explicit.
+\item \texttt{cleanup}: removing temporary artifacts created by the agent.
+\end{itemize}
+
+Design principles:
+\begin{itemize}
+\item The type is declared before execution, so the agent commits to its epistemic situation before any side effect.
+\item The type depends on the situation, not the command: \texttt{pytest} is \texttt{test-hypothesis} when a failure is expected and \texttt{verify} when confirming finished work.
+\item File tools (read, write, edit) require a reason but no type, because their act type is fixed by the tool; asking for it would only invite inconsistency.
+\item Calls are validated in-process: a missing or unknown type, or a reason that is too short, is rejected without execution and returned as a tool error for the model to fix.
+\item Consistency checks tie type to command, e.g., \texttt{collect-info} must not redirect output, delete, commit, or install, and \texttt{revert} must refer to a prior \texttt{change-state}.
+\end{itemize}
+
+Outputs:
+\begin{itemize}
+\item A journal (\texttt{.epistemic/journal.jsonl}) records each accepted call with sequence number, timestamp, type, command, reason, and outcome.
+\item A human-readable report (\texttt{RATIONALE.md}) is regenerated after every call: the distribution of act types, a numbered narrative of reason, command, and outcome, and a list of dead ends.
+\item The report exists on disk even if the agent is killed mid-run.
+\end{itemize}
+
+Motivation:
+\begin{itemize}
+\item Interpretability at the action boundary: every consequence of an agent passes through a tool call, so that is where intent must be recorded.
+\item Reasoning traces are verbose, often summarized, and increasingly hidden by providers; a typed reason costs a few hundred bytes per call.
+\item Accountability in regulated domains (medical devices, avionics, automotive, infrastructure), which require knowing why each step was taken and what was tried and abandoned.
+\item Machine-checkable policy: rules such as ``every \texttt{change-state} requires human approval'' can be enforced on types instead of by pattern-matching shell strings.
+\end{itemize}
+
+Limitations:
+\begin{itemize}
+\item Reasons are declared, not evidenced: they are claims about intent and can be false.
+\item Validation gates are shallow and do not stop a model that confabulates plausible reasons.
+\item Each call pays a token overhead for the extra fields.
+\end{itemize}
+
 
 \todo{An agent that tracks what it knows vs.\ believes: every claim in the final report is linked to supporting evidence in the trajectory.}
 
