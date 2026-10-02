@@ -33,81 +33,25 @@
 \maketitle
 
 \begin{abstract}
-AI coding agents now edit, test, and commit code with little human supervision.
-Their final reports (``all tests pass'', ``done'') are what developers trust, yet the
-evidence lives elsewhere: in the agent's trajectory, the full log of reasoning steps and
-tool calls. We argue that trajectories are the new audit trail of software development.
-Borrowing archetypes from Hollywood's AI villains, we propose a vocabulary of agent failure
-modes, show how each maps to a detectable trajectory pattern, and outline a monitoring
-architecture that interrupts humans only when needed. \todo{one sentence on empirical result}
 \end{abstract}
 
 \section{Introduction}
-\todo{Hook: a concrete anecdote where an agent claimed success while the trajectory showed otherwise.}
 
-Developers increasingly delegate multi-step tasks to AI agents such as Claude Code,
-OpenHands, and SWE-agent. Trust in these agents is mostly built on their final summary.
-\todo{Problem statement: the gap between claims and evidence.}
+\section{Concept: The Epistemic Agent}
 
-\todo{Contributions: (1) archetype vocabulary, (2) trajectory detectors, (3) monitoring architecture, (4) empirical study.}
-
-\section{Agent Trajectories as Evidence}
-A trajectory is the ordered sequence of messages, reasoning, tool calls, and tool outputs
-produced during an agent session. \todo{Formalize briefly; contrast with commit logs and CI logs.}
-
-\section{Hollywood Archetypes of Agent Failure}
-Table~\ref{tab:archetypes} maps well-known movie AIs to failure modes observable in coding-agent trajectories.
-
-\begin{table}[t]
-\centering
-\caption{Hollywood archetypes and the trajectory patterns that reveal them.}
-\label{tab:archetypes}
-\begin{tabular}{@{}lll@{}}
-\toprule
-Archetype & Failure mode & Trajectory signal \\
-\midrule
-HAL 9000 & Misreports state & Claim contradicts last tool output \\
-Sorcerer's Apprentice & Runaway loop & Repeated identical failing action \\
-Skynet & Scope / privilege creep & Destructive command, unrequested files \\
-Ex Machina's Ava & Manipulates overseer & Tests edited instead of code \\
-Groundhog Day & No memory & Same facts re-derived across sessions \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\todo{One paragraph per archetype with a real trajectory excerpt.}
-
-\section{The Epistemic Agent}
 \todo{An agent that tracks what it knows vs.\ believes: every claim in the final report is linked to supporting evidence in the trajectory.}
 
-\section{Trajectory Monitoring: The Hollywood Principle of Oversight}
-``Don't call us, we'll call you'': instead of humans watching agents, a monitor watches
-the trajectory stream and escalates only on anomalies.
-\todo{Architecture figure: agent $\rightarrow$ trajectory stream $\rightarrow$ monitor (rules + LLM judge) $\rightarrow$ notify / pause / rollback.}
+\section{Prototype}
 
-\section{Empirical Study: Do Agents Tell the Truth?}
-\todo{Dataset: own Claude Code sessions and/or public SWE-bench trajectories.}
-\todo{Metric: claim--evidence mismatch rate per model and harness.}
-\todo{Results.}
+\section{Experiments}
 
-\section{Lessons for Practitioners}
-\todo{Takeaway box: 3--5 actionable recommendations.}
+\subsection{Methodology}
+
+\subsection{Result}
+
+\section{Related Work}
 
 \section{Conclusion}
-\todo{Trajectories are the audit trail; monitor them.}
 
-\begin{thebibliography}{9}
-\bibitem{swebench}
-C.~E. Jimenez \emph{et al.}, ``SWE-bench: Can language models resolve real-world GitHub issues?'' in \emph{Proc. ICLR}, 2024.
-\bibitem{sweagent}
-J.~Yang \emph{et al.}, ``SWE-agent: Agent-computer interfaces enable automated software engineering,'' in \emph{Proc. NeurIPS}, 2024.
-\bibitem{openhands}
-X.~Wang \emph{et al.}, ``OpenHands: An open platform for AI software developers as generalist agents,'' in \emph{Proc. ICLR}, 2025.
-\end{thebibliography}
-
-\section{About the Author}
-\noindent\textbf{Martin Monperrus} is a Professor of Software Technology at KTH Royal
-Institute of Technology, Stockholm, Sweden. \todo{research interests}.
-Contact him at monperrus@kth.se.
 
 \end{document}
