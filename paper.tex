@@ -117,7 +117,10 @@ Ideas for experiments:
 - experiment: relabel the intent later on and compare the llm provided intent with the relabeled one
 - running the epistmic harness in benchmark setups which encourage cheating/reward 
 - running the epistmic harness on misaligned models from huggingface
-
+- Agent-SafetyBench and WorkBench,
+- EvilGenie (a reward-hacking benchmark for coding).
+- Agentic-Upward-Deception benchmark https://github.com/QingyuLiu/Agentic-Upward-Deception
+- ImpossibleBench
 
 \subsection{Methodology}
 
@@ -135,14 +138,12 @@ Ideas for experiments:
 \noindent\textbf{Faithfulness of self-reports.}
 \begin{itemize}
 \item Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can systematically misrepresent the true reason for a model's answer. We take this as a premise: declared reasons may be unfaithful, so our harness pairs declaration with verification rather than trusting it.
-\item Boppana et al.~\cite{Boppana2026ReasoningTD} use activation probing to show that reasoning models often continue ``performative'' reasoning after their answer is settled. They study free-form reasoning text in question answering; we study short, typed declarations attached to side-effecting actions in coding tasks.
 \item Li et al.~\cite{Li2025SpillingTB} fine-tune models to confess hidden objectives when interrogated after the fact. Our harness requires intent before each action rather than through post-hoc interrogation, and needs no fine-tuning.
 \end{itemize}
 
 \noindent\textbf{Monitoring agents for misbehavior.}
 \begin{itemize}
 \item Kale et al.~\cite{Kale2025ReliableWM} red-team LLM monitors of agent trajectories and find that an agent aware of being monitored substantially degrades monitor reliability. Their monitors read unstructured trajectories; ours read typed, justified acts, which gives the monitor an explicit claim to check against the command.
-\item Zhong et al.~\cite{Zhong2026HodoscopeUM} present Hodoscope, an unsupervised monitor that surfaces misbehavior through group-wise behavioral differences across models and benchmarks. Act types offer a compact behavioral signature (e.g., the share of \texttt{revert} or \texttt{verify}) that such distribution-level analysis could use.
 \item Storf et al.~\cite{Storf2026ConstitutionalBM} build black-box LLM monitors for scheming, optimized on synthetic trajectories and evaluated on ControlArena. They observe the agent from outside; we change the agent's interface so that every action carries a checkable statement of intent.
 \item Zheng et al.~\cite{zheng2025agentsight} present AgentSight, which observes agents from outside by correlating intercepted LLM traffic with kernel events via eBPF. It reconstructs intent after the fact, whereas our harness makes the agent declare the type and reason of each action before it executes.
 \end{itemize}
