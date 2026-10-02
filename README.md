@@ -9,6 +9,8 @@ trajectory monitoring
 trajectory analysis
 which dataset
 
+Epistemic agent
+
 ## Ideas
 
 ### 1. Hollywood failure modes as a taxonomy for agent trajectories
