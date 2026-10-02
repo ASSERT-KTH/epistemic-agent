@@ -79,6 +79,8 @@ Design principles:
 \item Consistency checks tie type to command, e.g., \texttt{collect-info} must not redirect output, delete, commit, or install, and \texttt{revert} must refer to a prior \texttt{change-state}.
 \end{itemize}
 
+\todo{Two kinds of usages: live monitoring and guardrailing or posthoc/fore,sics analysis of traces}
+
 Outputs:
 \begin{itemize}
 \item A journal (\texttt{.epistemic/journal.jsonl}) records each accepted call with sequence number, timestamp, type, command, reason, and outcome.
@@ -115,8 +117,8 @@ Open source implementation at https://github.com/ASSERT-KTH/ieee-software-hollyw
 
 Ideas for experiments:
 - experiment: relabel the intent later on and compare the llm provided intent with the relabeled one
-- running the epistmic harness in benchmark setups which encourage cheating/reward 
-- running the epistmic harness on misaligned models from huggingface
+- running the epistemic harness in benchmark setups which encourage cheating/reward 
+- running the epistemic harness on misaligned models from huggingface
 - Agent-SafetyBench and WorkBench,
 - EvilGenie (a reward-hacking benchmark for coding).
 - Agentic-Upward-Deception benchmark https://github.com/QingyuLiu/Agentic-Upward-Deception
