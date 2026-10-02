@@ -41,6 +41,15 @@
 
 \section{Introduction}
 
+Motivation:
+\begin{itemize}
+\item Interpretability at the action boundary: every consequence of an agent passes through a tool call, so that is where intent must be recorded.
+\item Reasoning traces are verbose, often summarized, and increasingly hidden by providers; a typed reason costs a few hundred bytes per call.
+\item Accountability in regulated domains (medical devices, avionics, automotive, infrastructure), which require knowing why each step was taken and what was tried and abandoned.
+\item Machine-checkable policy: rules such as ``every \texttt{change-state} requires human approval'' can be enforced on types instead of by pattern-matching shell strings.
+\end{itemize}
+
+
 \section{Concept: The Epistemic Agent}
 
 Every tool call carries three mandatory fields:
@@ -50,7 +59,7 @@ Every tool call carries three mandatory fields:
 \item \texttt{reason}: free text stating the intent behind this specific call, not what the command does.
 \end{itemize}
 
-The vocabulary has seven act types:
+The vocabulary has seven act types \todo{shrink / expand}:
 \begin{itemize}
 \item \texttt{collect-info}: read-only observation to build understanding.
 \item \texttt{test-hypothesis}: an experiment to confirm or refute a current belief; the reason names the belief and the observation that would refute it.
@@ -73,24 +82,11 @@ Design principles:
 Outputs:
 \begin{itemize}
 \item A journal (\texttt{.epistemic/journal.jsonl}) records each accepted call with sequence number, timestamp, type, command, reason, and outcome.
-\item A human-readable report (\texttt{RATIONALE.md}) is regenerated after every call: the distribution of act types, a numbered narrative of reason, command, and outcome, and a list of dead ends.
-\item The report exists on disk even if the agent is killed mid-run.
+\item The report exists on disk even if the agent is killed mid-run. Duarability
 \end{itemize}
 
-Motivation:
-\begin{itemize}
-\item Interpretability at the action boundary: every consequence of an agent passes through a tool call, so that is where intent must be recorded.
-\item Reasoning traces are verbose, often summarized, and increasingly hidden by providers; a typed reason costs a few hundred bytes per call.
-\item Accountability in regulated domains (medical devices, avionics, automotive, infrastructure), which require knowing why each step was taken and what was tried and abandoned.
-\item Machine-checkable policy: rules such as ``every \texttt{change-state} requires human approval'' can be enforced on types instead of by pattern-matching shell strings.
-\end{itemize}
+\todo{A human-readable report (\texttt{RATIONALE.md}) is regenerated after every call: the distribution of act types, a numbered narrative of reason, command, and outcome, and a list of dead ends.}
 
-Limitations:
-\begin{itemize}
-\item Reasons are declared, not evidenced: they are claims about intent and can be false.
-\item Validation gates are shallow and do not stop a model that confabulates plausible reasons.
-\item Each call pays a token overhead for the extra fields.
-\end{itemize}
 
 
 \todo{An agent that tracks what it knows vs.\ believes: every claim in the final report is linked to supporting evidence in the trajectory.}
@@ -104,6 +100,14 @@ Ideas for verification:
 \section{Prototype}
 
 Open source implementation at https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai
+
+
+\subsection{Limitations}
+\begin{itemize}
+\item Reasons are declared, not evidenced: they are claims about intent and can be false.
+\item Validation gates are shallow and do not stop a model that confabulates plausible reasons.
+\item Each call pays a token overhead for the extra fields.
+\end{itemize}
 
 \section{Experiments}
 
