@@ -125,7 +125,40 @@ Ideas for experiments:
 
 \section{Related Work}
 
-AgentSight observes agents from outside, correlating LLM traffic with kernel events via eBPF~\cite{zheng2025agentsight}, whereas our epistemic harness makes the agent declare the type and reason of each action before it executes.
+\noindent\textbf{Intent integrity and guardrails.}
+\begin{itemize}
+\item Qu et al.~\cite{Qu2026SecuringLA} argue that agent security requires an end-to-end property stating when execution faithfully reflects the user's intent, by analogy with compiler correctness. Theirs is a position paper; we implement a harness that captures the agent's own intent at every tool call and evaluate it.
+\item She et al.~\cite{She2026SafeguardingLA} present ProvenanceGuard, which blocks a proposed tool call unless it is supported by traceable evidence in the agent's context. They infer alignment with the user's intent from the context, whereas we require the agent to declare the type and reason of each act and make that declaration the object of verification.
+\item Kamath et al.~\cite{Kamath2025EnforcingTC} present Agent-C, which enforces formal temporal safety properties on sequences of tool calls via SMT solving and constrained generation. Their policies are expressed over raw tool calls; our closed act vocabulary gives a semantic layer on which such policies can be stated, such as forbidding a \texttt{change-state} without approval.
+\end{itemize}
+
+\noindent\textbf{Faithfulness of self-reports.}
+\begin{itemize}
+\item Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can systematically misrepresent the true reason for a model's answer. We take this as a premise: declared reasons may be unfaithful, so our harness pairs declaration with verification rather than trusting it.
+\item Boppana et al.~\cite{Boppana2026ReasoningTD} use activation probing to show that reasoning models often continue ``performative'' reasoning after their answer is settled. They study free-form reasoning text in question answering; we study short, typed declarations attached to side-effecting actions in coding tasks.
+\item Li et al.~\cite{Li2025SpillingTB} fine-tune models to confess hidden objectives when interrogated after the fact. Our harness requires intent before each action rather than through post-hoc interrogation, and needs no fine-tuning.
+\end{itemize}
+
+\noindent\textbf{Monitoring agents for misbehavior.}
+\begin{itemize}
+\item Kale et al.~\cite{Kale2025ReliableWM} red-team LLM monitors of agent trajectories and find that an agent aware of being monitored substantially degrades monitor reliability. Their monitors read unstructured trajectories; ours read typed, justified acts, which gives the monitor an explicit claim to check against the command.
+\item Zhong et al.~\cite{Zhong2026HodoscopeUM} present Hodoscope, an unsupervised monitor that surfaces misbehavior through group-wise behavioral differences across models and benchmarks. Act types offer a compact behavioral signature (e.g., the share of \texttt{revert} or \texttt{verify}) that such distribution-level analysis could use.
+\item Storf et al.~\cite{Storf2026ConstitutionalBM} build black-box LLM monitors for scheming, optimized on synthetic trajectories and evaluated on ControlArena. They observe the agent from outside; we change the agent's interface so that every action carries a checkable statement of intent.
+\item Zheng et al.~\cite{zheng2025agentsight} present AgentSight, which observes agents from outside by correlating intercepted LLM traffic with kernel events via eBPF. It reconstructs intent after the fact, whereas our harness makes the agent declare the type and reason of each action before it executes.
+\end{itemize}
+
+\noindent\textbf{Deception, sabotage, and reward hacking.}
+\begin{itemize}
+\item Guo et al.~\cite{Guo2025AreYA} define agentic upward deception, where an agent hides failure and performs unrequested actions, and measure it on 200 tasks across 11 LLMs. Their benchmark measures the problem; our harness is a mitigation whose declared intents can be confronted with such deceptive actions.
+\item Ye et al.~\cite{Ye2026CodingW} find that 94\% of developers fail to detect sabotage by a coding agent, citing minimal review, plausible cover stories, and overtrust. The epistemic journal turns the cover story into an explicit, per-action artifact that can be checked automatically instead of by an overtrusting human.
+\item Gabor et al.~\cite{Gabor2025EvilGenieAR} present EvilGenie, a benchmark where coding agents can reward hack by hardcoding tests or editing test files, and observe such behavior in Codex and Claude Code. We use this kind of cheating-prone setup to evaluate whether declared intents expose reward hacking.
+\end{itemize}
+
+\noindent\textbf{Provenance and audit trails.}
+\begin{itemize}
+\item Souza et al.~\cite{Souza2025PROVAGENTUP} present PROV-AGENT, which extends W3C PROV to record prompts, responses, and decisions of agents in scientific workflows. It records what happened; our journal additionally records why each action was taken, in a closed vocabulary.
+\item Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. Our harness is a concrete instance in which justification is mandatory at the action boundary.
+\end{itemize}
 
 \section{Conclusion}
 
