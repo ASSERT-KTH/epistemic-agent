@@ -49,7 +49,16 @@ from pathlib import Path
 
 from agentknit import Tool, build_tool_spec, register_tools_in_library, run_task, run_repl
 from agentknit.tool_library import t_read, t_write, t_update, t_run
-from agentknit._core import DEFAULT_ENDPOINT
+
+# ── inference endpoint ───────────────────────────────────────────────────────
+# Any OpenAI-compatible chat-completions endpoint works; prewired to SciLifeLab
+# OpenLLM (free for KTH/SciLifeLab). The key is never stored here: it comes
+# from $OPENLLM_API_KEY, else the keyring entry open-llm.scilifelab.se/api_key
+# (mint one in the web UI: Settings > Account > API Keys).
+DEFAULT_ENDPOINT = "https://open-llm.scilifelab.se/api"
+DEFAULT_MODEL = "Qwen3-235B-A22B"
+KEY_ENV = "OPENLLM_API_KEY"
+KEYRING_SERVICE, KEYRING_USERNAME = "open-llm.scilifelab.se", "api_key"
 
 # ── the taxonomy ─────────────────────────────────────────────────────────────
 # name -> (one-line meaning shown to the model, does it mutate the world?)
@@ -408,10 +417,18 @@ _SYSTEM_SUPPLEMENT = (
 )
 
 
-def _build_schema(model: str, endpoint: str) -> dict[str, object]:
+def _key_source(key_env: str) -> dict[str, str]:
+    """Tell agentknit where to read the key from — never the key itself."""
+    if os.environ.get(key_env):
+        return {"key_env": key_env}
+    return {"keyring_service": KEYRING_SERVICE, "keyring_username": KEYRING_USERNAME}
+
+
+def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
     return {
         "model": model,
         "endpoint": endpoint,
+        **_key_source(key_env),
         "status": "default",
         "inferred_tool_schema": _TOOL_SCHEMA,
         "behaviour": {"call_delivery_mode": "structured_tool_calls"},
@@ -425,11 +442,15 @@ def parse_args() -> argparse.Namespace:
                     "and justified, and the session narrates itself into "
                     "RATIONALE.md."
     )
-    p.add_argument("model", nargs="?",
-                   default="run:///home/martin/bin/opencode-free-deepseek-v4-flash-completions.py",
-                   help="Model ID or run:// URI")
+    p.add_argument("model", nargs="?", default=DEFAULT_MODEL,
+                   help=f"Model ID on the endpoint (default: {DEFAULT_MODEL})")
     p.add_argument("task", nargs="*", help="One-shot task (omit for REPL)")
-    p.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
+    p.add_argument("--endpoint", default=DEFAULT_ENDPOINT,
+                   help="OpenAI-compatible chat-completions base URL "
+                        f"(default: {DEFAULT_ENDPOINT})")
+    p.add_argument("--key-env", default=KEY_ENV,
+                   help=f"Env var holding the API key (default: {KEY_ENV}; "
+                        f"falls back to keyring {KEYRING_SERVICE}/{KEYRING_USERNAME})")
     p.add_argument("--session", metavar="SESSION_ID")
     p.add_argument("--types", action="store_true", help="Print the act vocabulary and exit")
     args = p.parse_args()
@@ -450,7 +471,7 @@ def main() -> None:
     if args.types:
         print(_type_menu())
         return
-    schema = _build_schema(args.model, args.endpoint)
+    schema = _build_schema(args.model, args.endpoint, args.key_env)
     opts = dict(session_id=args.session, system_prompt_supplement=_SYSTEM_SUPPLEMENT,
                 strict_cache_proof=False)
     try:
