@@ -46,6 +46,7 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from agentknit import Tool, build_tool_spec, register_tools_in_library, run_task, run_repl
 from agentknit.tool_library import t_read, t_write, t_update, t_run
@@ -53,12 +54,20 @@ from agentknit.tool_library import t_read, t_write, t_update, t_run
 # ── inference endpoint ───────────────────────────────────────────────────────
 # Any OpenAI-compatible chat-completions endpoint works; prewired to SciLifeLab
 # OpenLLM (free for KTH/SciLifeLab). The key is never stored here: it comes
-# from $OPENLLM_API_KEY, else the keyring entry open-llm.scilifelab.se/api_key
-# (mint one in the web UI: Settings > Account > API Keys).
+# from $OPENLLM_API_KEY (or the env var named by --key-env), else from the
+# system keyring under the endpoint's hostname as the service name and "api_key"
+# as the username (see _key_source below).
+#
+# Key wallet: store keys with Python's keyring, one entry per provider:
+#   python3 -c "import keyring; keyring.set_password('<hostname>', 'api_key', '<key>')"
+# Examples:
+#   keyring.set_password('open-llm.scilifelab.se', 'api_key', '...')
+#   keyring.set_password('api.groq.com', 'api_key', 'gsk_...')
+#   keyring.set_password('api.together.xyz', 'api_key', '...')
 DEFAULT_ENDPOINT = "https://open-llm.scilifelab.se/api"
 DEFAULT_MODEL = "Qwen3-235B-A22B"
 KEY_ENV = "OPENLLM_API_KEY"
-KEYRING_SERVICE, KEYRING_USERNAME = "open-llm.scilifelab.se", "api_key"
+KEYRING_USERNAME = "api_key"
 
 # ── the taxonomy ─────────────────────────────────────────────────────────────
 # name -> (one-line meaning shown to the model, does it mutate the world?)
@@ -417,18 +426,24 @@ _SYSTEM_SUPPLEMENT = (
 )
 
 
-def _key_source(key_env: str) -> dict[str, str]:
-    """Tell agentknit where to read the key from — never the key itself."""
+def _key_source(key_env: str, endpoint: str) -> dict[str, str]:
+    """Tell agentknit where to read the key from — never the key itself.
+
+    Priority: env var (--key-env) > system keyring (hostname of endpoint).
+    Store a key with:
+      python3 -c "import keyring; keyring.set_password('<hostname>', 'api_key', '<key>')"
+    """
     if os.environ.get(key_env):
         return {"key_env": key_env}
-    return {"keyring_service": KEYRING_SERVICE, "keyring_username": KEYRING_USERNAME}
+    service = urlparse(endpoint).hostname or endpoint
+    return {"keyring_service": service, "keyring_username": KEYRING_USERNAME}
 
 
 def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
     return {
         "model": model,
         "endpoint": endpoint,
-        **_key_source(key_env),
+        **_key_source(key_env, endpoint),
         "status": "default",
         "inferred_tool_schema": _TOOL_SCHEMA,
         "behaviour": {"call_delivery_mode": "structured_tool_calls"},
@@ -450,7 +465,7 @@ def parse_args() -> argparse.Namespace:
                         f"(default: {DEFAULT_ENDPOINT})")
     p.add_argument("--key-env", default=KEY_ENV,
                    help=f"Env var holding the API key (default: {KEY_ENV}; "
-                        f"falls back to keyring {KEYRING_SERVICE}/{KEYRING_USERNAME})")
+                        f"falls back to keyring <endpoint-hostname>/{KEYRING_USERNAME})")
     p.add_argument("--session", metavar="SESSION_ID")
     p.add_argument("--types", action="store_true", help="Print the act vocabulary and exit")
     args = p.parse_args()
