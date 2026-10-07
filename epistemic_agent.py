@@ -50,6 +50,17 @@ from urllib.parse import urlparse
 
 from agentknit import Tool, build_tool_spec, register_tools_in_library, run_task, run_repl
 from agentknit.tool_library import t_read, t_write, t_update, t_run
+import agentknit.openai_compat as _oc
+
+# Groq (and other strict providers) reject non-standard message fields such as
+# "ts" that agentknit adds internally for session tracking.  Strip any key that
+# is not part of the OpenAI messages spec before the HTTP call goes out.
+_OPENAI_MSG_KEYS = {"role", "content", "name", "tool_calls", "tool_call_id", "refusal"}
+_orig_completions_create = _oc._Completions.create
+def _strict_completions_create(self, *, messages, **kwargs):
+    clean = [{k: v for k, v in m.items() if k in _OPENAI_MSG_KEYS} for m in messages]
+    return _orig_completions_create(self, messages=clean, **kwargs)
+_oc._Completions.create = _strict_completions_create
 
 # ── inference endpoint ───────────────────────────────────────────────────────
 # Any OpenAI-compatible chat-completions endpoint works; prewired to SciLifeLab
@@ -448,6 +459,9 @@ def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
         "inferred_tool_schema": _TOOL_SCHEMA,
         "behaviour": {"call_delivery_mode": "structured_tool_calls"},
         "tool_dispatch": _TOOL_DISPATCH,
+        # Strict providers (Groq, Together, OpenAI, ...) reject agentknit's
+        # internal extra_body fields.  These options tell agentknit to omit them.
+        "options": ["exclude-prompt_cache_key"],
     }
 
 
