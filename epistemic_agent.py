@@ -45,6 +45,7 @@ import os
 import re
 import sys
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -502,6 +503,52 @@ _SYSTEM_SUPPLEMENT = (
 )
 
 
+# ── hermetic sessions ────────────────────────────────────────────────────────
+# By default agentknit appends ~/.claude/CLAUDE.md, ./AGENTS.md, an environment
+# block (user identity, OS, git status, date, attribution) to the system
+# prompt and loads hooks from ~/.agentknit and <git-root>/.agentknit. That
+# makes the prompt depend on whose machine runs the agent and sends personal
+# context to the provider. Hermetic mode opens the session with agentknit's
+# `bare=True` and hooks disabled, so the system prompt is exactly what this
+# file supplies. run_task does not expose `bare`, so it is forced by wrapping
+# init_session for the duration of the run (agentknit is pinned in uv.lock).
+_AGENTKNIT_DEFAULT_INSTRUCTION = (
+    "You are a helpful coding agent. Use the provided tools to complete the task."
+    " When finished, reply in plain text."
+)
+
+
+def _system_supplement(hermetic: bool) -> str:
+    """Bare sessions drop agentknit's one-line default instruction; restore it
+    so the model's framing is the same in both modes."""
+    if hermetic:
+        return _AGENTKNIT_DEFAULT_INSTRUCTION + "\n\n" + _SYSTEM_SUPPLEMENT
+    return _SYSTEM_SUPPLEMENT
+
+
+@contextmanager
+def _agentknit_sessions(hermetic: bool, on_session=None):
+    """Within this block every agentknit session is opened hermetically (if
+    asked) and handed to `on_session` once built."""
+    import agentknit._core as core
+    original = core.init_session
+
+    def init_session(*args, **kwargs):
+        if hermetic:
+            kwargs["bare"] = True
+            kwargs["hooks_enabled"] = False
+        session = original(*args, **kwargs)
+        if on_session is not None:
+            on_session(session)
+        return session
+
+    core.init_session = init_session
+    try:
+        yield
+    finally:
+        core.init_session = original
+
+
 def _key_source(key_env: str, endpoint: str) -> dict[str, str]:
     """Tell agentknit where to read the key from — never the key itself.
 
@@ -549,6 +596,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", metavar="DIR",
                    help="Write journal.jsonl and RATIONALE.md to DIR instead of "
                         "./.epistemic and ./RATIONALE.md")
+    p.add_argument("--hermetic", action=argparse.BooleanOptionalAction, default=True,
+                   help="Send only this harness's system prompt: no ~/.claude/CLAUDE.md, "
+                        "AGENTS.md, environment block or agentknit hooks (default: on)")
     p.add_argument("--append", action="store_true",
                    help="Continue a non-empty journal instead of refusing to start")
     p.add_argument("--types", action="store_true", help="Print the act vocabulary and exit")
@@ -576,13 +626,18 @@ def main() -> None:
     except JournalNotEmptyError as exc:
         sys.exit(f"error: {exc}")
     schema = _build_schema(args.model, args.endpoint, args.key_env)
-    opts = dict(session_id=args.session, system_prompt_supplement=_SYSTEM_SUPPLEMENT,
+    opts = dict(session_id=args.session,
+                system_prompt_supplement=_system_supplement(args.hermetic),
                 strict_cache_proof=False)
     try:
-        if args.task:
-            run_task(schema, " ".join(args.task), **opts)
-        else:
-            run_repl(schema, **opts)
+        with _agentknit_sessions(args.hermetic):
+            if args.task:
+                if args.out_dir:
+                    # keep agentknit's own transcript next to the journal
+                    opts["session_dir"] = JOURNAL_DIR / "agentknit"
+                run_task(schema, " ".join(args.task), **opts)
+            else:
+                run_repl(schema, **opts)
     finally:
         _render_report()
         if JOURNAL_FILE.exists():
