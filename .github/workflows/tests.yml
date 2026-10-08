@@ -1,0 +1,19 @@
+name: tests
+
+on:
+  push:
+    branches: [main, carmine-dev]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Run tests (no network, no API key; live tests are skipped)
+        run: uv run pytest -q
