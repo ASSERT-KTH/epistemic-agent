@@ -43,6 +43,7 @@ import argparse
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -157,6 +158,29 @@ def _configure(out_dir: str | Path | None = None) -> None:
     JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
     _t0 = time.time()
     _seq = 0
+
+
+class JournalNotEmptyError(RuntimeError):
+    """Raised when a run would append to another run's journal."""
+
+
+def _prepare_journal(append: bool = False) -> None:
+    """Guard against mixing runs in one journal.
+
+    A non-empty journal means another run already wrote here. Without
+    `append` that is an error (the seq numbers would restart at 1 and
+    collide); with `append` numbering continues after the last entry."""
+    global _seq
+    entries = _load_journal()
+    if not entries:
+        return
+    if not append:
+        raise JournalNotEmptyError(
+            f"{JOURNAL_FILE} already holds {len(entries)} entries from a previous "
+            "run. Use a fresh --out-dir, delete the journal, or pass --append "
+            "to continue it."
+        )
+    _seq = max(int(e.get("seq", 0)) for e in entries)
 
 
 # ── journal ──────────────────────────────────────────────────────────────────
@@ -503,6 +527,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", metavar="DIR",
                    help="Write journal.jsonl and RATIONALE.md to DIR instead of "
                         "./.epistemic and ./RATIONALE.md")
+    p.add_argument("--append", action="store_true",
+                   help="Continue a non-empty journal instead of refusing to start")
     p.add_argument("--types", action="store_true", help="Print the act vocabulary and exit")
     args = p.parse_args()
     # `model` is optional-positional, so a bare task would otherwise swallow its
@@ -523,6 +549,10 @@ def main() -> None:
         print(_type_menu())
         return
     _configure(args.out_dir)
+    try:
+        _prepare_journal(args.append)
+    except JournalNotEmptyError as exc:
+        sys.exit(f"error: {exc}")
     schema = _build_schema(args.model, args.endpoint, args.key_env)
     opts = dict(session_id=args.session, system_prompt_supplement=_SYSTEM_SUPPLEMENT,
                 strict_cache_proof=False)
