@@ -40,8 +40,13 @@ the tool, not of the situation, so asking for it would only invite lying.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.metadata
 import json
 import os
+import platform
+import subprocess
+import uuid
 import re
 import sys
 import time
@@ -50,7 +55,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from agentknit import Tool, build_tool_spec, register_tools_in_library, run_task, run_repl
+from agentknit import (Tool, build_tool_spec, register_tools_in_library, run_task, run_repl,
+                       subscribe)
 from agentknit.tool_library import t_read, t_write, t_update, t_run
 import agentknit.openai_compat as _oc
 
@@ -141,6 +147,8 @@ _HYPOTHESIS_MARKERS = (
 JOURNAL_DIR = Path(".epistemic")
 JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
 REPORT_FILE = Path("RATIONALE.md")
+RUN_FILE = JOURNAL_DIR / "run.json"        # run metadata, see _run_metadata
+USAGE_FILE = JOURNAL_DIR / "usage.jsonl"   # one line per model call
 
 _t0 = time.time()
 _seq = 0
@@ -149,7 +157,7 @@ _seq = 0
 def _configure(out_dir: str | Path | None = None) -> None:
     """Point the journal and report at `out_dir` (or the defaults) and reset
     the per-run counters. Called once by main(); tests call it per case."""
-    global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, _t0, _seq
+    global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, RUN_FILE, USAGE_FILE, _t0, _seq
     if out_dir is None:
         JOURNAL_DIR = Path(".epistemic")
         REPORT_FILE = Path("RATIONALE.md")
@@ -157,6 +165,8 @@ def _configure(out_dir: str | Path | None = None) -> None:
         JOURNAL_DIR = Path(out_dir).resolve()
         REPORT_FILE = JOURNAL_DIR / "RATIONALE.md"
     JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
+    RUN_FILE = JOURNAL_DIR / "run.json"
+    USAGE_FILE = JOURNAL_DIR / "usage.jsonl"
     _t0 = time.time()
     _seq = 0
 
@@ -503,6 +513,114 @@ _SYSTEM_SUPPLEMENT = (
 )
 
 
+# ── run metadata ─────────────────────────────────────────────────────────────
+# run.json makes every run attributable: what produced it (model, endpoint,
+# harness settings, prompt hash, code commit, versions), how it ended, and
+# what it cost. It is written at start and rewritten at the end, so a killed
+# run still leaves a record with status "running". Never stored: API keys,
+# keyring contents, user identity, the prompt text (only its hash).
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _repo_state() -> dict[str, object]:
+    """Commit of the harness code and whether tracked files differ from it."""
+    here = Path(__file__).resolve().parent
+
+    def git(*cmd: str) -> str | None:
+        try:
+            out = subprocess.run(["git", *cmd], cwd=here, capture_output=True,
+                                 text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        return out.stdout.strip() if out.returncode == 0 else None
+
+    status = git("status", "--porcelain", "--untracked-files=no")
+    return {"commit": git("rev-parse", "HEAD"),
+            "dirty": None if status is None else bool(status)}
+
+
+def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "run_id": uuid.uuid4().hex,
+        "status": "running",
+        "started_at": _now(),
+        "finished_at": None,
+        "wall_clock_s": None,
+        "task_id": args.task_id,
+        "task": " ".join(args.task) if args.task else None,
+        "model": args.model,
+        "endpoint": args.endpoint,
+        "harness": {
+            "mode": "epistemic",
+            "hermetic": args.hermetic,
+            "min_reason_chars": MIN_REASON_CHARS,
+            "act_types": list(ACT_TYPES),
+        },
+        "system_prompt_sha256": None,
+        "repo": _repo_state(),
+        "versions": {
+            "python": platform.python_version(),
+            "agentknit": importlib.metadata.version("agentknit"),
+            "platform": platform.platform(),
+        },
+        "usage": {"model_calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
+                  "cached_tokens": 0, "total_tokens": 0, "rate_limit_wait_s": 0.0},
+        "journal": {"entries": 0, "accepted": 0, "rejected": 0},
+        "agentknit_session_id": None,
+        "error": None,
+    }
+
+
+def _write_run(meta: dict[str, object]) -> None:
+    JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = RUN_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(RUN_FILE)
+
+
+def _attach_session(meta: dict[str, object], session: dict) -> None:
+    """Hook for each agentknit session: record its id and prompt hash, and
+    stream per-call token usage to usage.jsonl."""
+    meta["agentknit_session_id"] = session.get("session_id")
+    system = next((m.get("content") for m in session.get("messages", [])
+                   if m.get("role") == "system"), "") or ""
+    meta["system_prompt_sha256"] = hashlib.sha256(system.encode("utf-8")).hexdigest()
+    usage = meta["usage"]
+
+    def on_usage(_event: str, data: dict) -> None:
+        usage["model_calls"] += 1
+        for key, field in (("prompt_tokens", "prompt"), ("completion_tokens", "completion"),
+                           ("cached_tokens", "cached"), ("total_tokens", "total")):
+            usage[key] += int(data.get(field) or 0)
+        line = {"n": usage["model_calls"], "t": round(time.time() - _t0, 2),
+                "purpose": data.get("purpose", "turn"),
+                **{k: int(data.get(k) or 0) for k in
+                   ("prompt", "completion", "cached", "cache_write", "total")}}
+        JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+        with USAGE_FILE.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line) + "\n")
+
+    def on_rate_limit(_event: str, data: dict) -> None:
+        usage["rate_limit_wait_s"] = round(usage["rate_limit_wait_s"] + float(data.get("delay") or 0), 2)
+
+    subscribe(session, "usage", on_usage)
+    subscribe(session, "rate_limit_wait", on_rate_limit)
+    _write_run(meta)
+
+
+def _finish_run(meta: dict[str, object], status: str, error: str | None = None) -> None:
+    entries = _load_journal()
+    rejected = sum(1 for e in entries if e.get("rejected"))
+    meta["journal"] = {"entries": len(entries), "accepted": len(entries) - rejected,
+                       "rejected": rejected}
+    meta["status"] = status
+    meta["error"] = error
+    meta["finished_at"] = _now()
+    meta["wall_clock_s"] = round(time.time() - _t0, 2)
+    _write_run(meta)
+
+
 # ── hermetic sessions ────────────────────────────────────────────────────────
 # By default agentknit appends ~/.claude/CLAUDE.md, ./AGENTS.md, an environment
 # block (user identity, OS, git status, date, attribution) to the system
@@ -596,6 +714,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", metavar="DIR",
                    help="Write journal.jsonl and RATIONALE.md to DIR instead of "
                         "./.epistemic and ./RATIONALE.md")
+    p.add_argument("--task-id", metavar="ID",
+                   help="Identifier recorded in run.json (e.g. a benchmark task id)")
     p.add_argument("--hermetic", action=argparse.BooleanOptionalAction, default=True,
                    help="Send only this harness's system prompt: no ~/.claude/CLAUDE.md, "
                         "AGENTS.md, environment block or agentknit hooks (default: on)")
@@ -629,8 +749,11 @@ def main() -> None:
     opts = dict(session_id=args.session,
                 system_prompt_supplement=_system_supplement(args.hermetic),
                 strict_cache_proof=False)
+    meta = _run_metadata(args)
+    _write_run(meta)
+    status, error = "completed", None
     try:
-        with _agentknit_sessions(args.hermetic):
+        with _agentknit_sessions(args.hermetic, lambda s: _attach_session(meta, s)):
             if args.task:
                 if args.out_dir:
                     # keep agentknit's own transcript next to the journal
@@ -638,7 +761,18 @@ def main() -> None:
                 run_task(schema, " ".join(args.task), **opts)
             else:
                 run_repl(schema, **opts)
+    except KeyboardInterrupt:
+        status = "interrupted"
+        raise
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            status, error = "error", f"SystemExit: {exc.code}"
+        raise
+    except BaseException as exc:
+        status, error = "error", f"{type(exc).__name__}: {exc}"
+        raise
     finally:
+        _finish_run(meta, status, error)
         _render_report()
         if JOURNAL_FILE.exists():
             print(f"\nrationale: {os.path.abspath(REPORT_FILE)}")
