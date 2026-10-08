@@ -11,10 +11,11 @@ act* it is and *why*.  Every `bash` call carries two mandatory fields:
   reason  — free text: the intent behind this specific command
 
 Both are validated in-process: an ill-typed or hand-wavy call never reaches
-the shell, it comes back as a tool error the model must fix.  Every accepted
-call is appended to a journal (`.epistemic/journal.jsonl`) and the journal is
-re-rendered into `RATIONALE.md` after *every* tool call, so the narrative of
-the session exists on disk even if the agent is killed mid-run.
+the shell, it comes back as a tool error the model must fix.  Every call,
+accepted or rejected, is appended to a journal and the journal is re-rendered
+into `RATIONALE.md` after *every* tool call, so the narrative of the session
+exists on disk even if the agent is killed mid-run.  Rejected calls are
+marked `rejected: true` and listed apart from the narrative.
 
 The taxonomy is the interesting part.  The three obvious types
 (change-state / test-hypothesis / collect-info) do not cover what a coding
@@ -36,6 +37,29 @@ Exposed tools:
 
 The file tools take `reason` but not `type`: their act type is a property of
 the tool, not of the situation, so asking for it would only invite lying.
+
+Outputs (in `--out-dir DIR`; without it, `./.epistemic/` plus `./RATIONALE.md`):
+  journal.jsonl  one entry per tool call: seq, time, type, command, reason,
+                 outcome; rejected calls carry `rejected` and `rejection`
+  RATIONALE.md   human-readable report rendered from the journal
+  run.json       run metadata: model, endpoint, task id, harness settings,
+                 system-prompt hash, harness commit, versions, token totals,
+                 final status; written at start, rewritten at the end
+  usage.jsonl    token usage per model call
+  agentknit/     agentknit's own transcript (one-shot tasks only)
+A run refuses to start on a non-empty journal unless `--append` is given.
+
+Sessions are hermetic by default: the system prompt is only this harness's
+text, with no ~/.claude/CLAUDE.md, ./AGENTS.md, environment block or
+agentknit hooks.  `--no-hermetic` restores agentknit's defaults.
+
+Usage:
+  uv sync
+  uv run python epistemic_agent.py --out-dir runs/demo --task-id demo/1 \\
+      --endpoint https://openllm.scilifelab.se/api Qwen3-235B-A22B "<task>"
+  uv run python epistemic_agent.py --types      # print the act vocabulary
+Keys come from $OPENLLM_API_KEY (or --key-env) or the system keyring, under
+the endpoint's hostname with username "api_key" (see _key_source).
 """
 from __future__ import annotations
 
