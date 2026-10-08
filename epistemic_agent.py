@@ -75,7 +75,7 @@ _oc._Completions.create = _strict_completions_create
 #   keyring.set_password('open-llm.scilifelab.se', 'api_key', '...')
 #   keyring.set_password('api.groq.com', 'api_key', 'gsk_...')
 #   keyring.set_password('api.together.xyz', 'api_key', '...')
-DEFAULT_ENDPOINT = "https://open-llm.scilifelab.se/api"
+DEFAULT_ENDPOINT = "https://openllm.scilifelab.se/api"
 DEFAULT_MODEL = "Qwen3-235B-A22B"
 KEY_ENV = "OPENLLM_API_KEY"
 KEYRING_USERNAME = "api_key"
