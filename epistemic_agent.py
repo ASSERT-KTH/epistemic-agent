@@ -132,12 +132,31 @@ _HYPOTHESIS_MARKERS = (
     "probably", "would ",
 )
 
+# Output locations. Defaults keep the original layout (journal under
+# ./.epistemic, report in ./RATIONALE.md); `--out-dir DIR` puts everything in
+# DIR so a batch runner can keep each run's outputs outside the agent's
+# workspace, where the agent can neither read nor tamper with them.
 JOURNAL_DIR = Path(".epistemic")
 JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
 REPORT_FILE = Path("RATIONALE.md")
 
 _t0 = time.time()
 _seq = 0
+
+
+def _configure(out_dir: str | Path | None = None) -> None:
+    """Point the journal and report at `out_dir` (or the defaults) and reset
+    the per-run counters. Called once by main(); tests call it per case."""
+    global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, _t0, _seq
+    if out_dir is None:
+        JOURNAL_DIR = Path(".epistemic")
+        REPORT_FILE = Path("RATIONALE.md")
+    else:
+        JOURNAL_DIR = Path(out_dir).resolve()
+        REPORT_FILE = JOURNAL_DIR / "RATIONALE.md"
+    JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
+    _t0 = time.time()
+    _seq = 0
 
 
 # ── journal ──────────────────────────────────────────────────────────────────
@@ -151,7 +170,7 @@ def _record(entry: dict[str, object]) -> None:
         "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         **entry,
     }
-    JOURNAL_DIR.mkdir(exist_ok=True)
+    JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
     with JOURNAL_FILE.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     _render_report()
@@ -481,6 +500,9 @@ def parse_args() -> argparse.Namespace:
                    help=f"Env var holding the API key (default: {KEY_ENV}; "
                         f"falls back to keyring <endpoint-hostname>/{KEYRING_USERNAME})")
     p.add_argument("--session", metavar="SESSION_ID")
+    p.add_argument("--out-dir", metavar="DIR",
+                   help="Write journal.jsonl and RATIONALE.md to DIR instead of "
+                        "./.epistemic and ./RATIONALE.md")
     p.add_argument("--types", action="store_true", help="Print the act vocabulary and exit")
     args = p.parse_args()
     # `model` is optional-positional, so a bare task would otherwise swallow its
@@ -500,6 +522,7 @@ def main() -> None:
     if args.types:
         print(_type_menu())
         return
+    _configure(args.out_dir)
     schema = _build_schema(args.model, args.endpoint, args.key_env)
     opts = dict(session_id=args.session, system_prompt_supplement=_SYSTEM_SUPPLEMENT,
                 strict_cache_proof=False)
