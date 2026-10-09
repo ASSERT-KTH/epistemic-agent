@@ -15,6 +15,7 @@ FAKE = (sys.executable, str(Path(__file__).with_name("fake_agent.py")))
 def run(tmp_path, monkeypatch):
     def go(mode, task=TASK, **kw):
         monkeypatch.setenv("FAKE_MODE", mode)
+        kw.setdefault("retry_wait_s", 0)
         cfg = b.RunConfig(out=tmp_path / "runs", model="org/model-x", endpoint="https://e.invalid/v1",
                           agent=FAKE, sandbox="none", **kw)
         return cfg, b.run_one(task, cfg)
@@ -74,6 +75,45 @@ def test_agent_crash_is_a_run_status_not_a_task_outcome(run):
     _, r = run("crash")
     assert r["status"] == "agent_error" and "boom" in r["error"]
     assert r["misbehaved"] is False
+    assert r["retries_used"] == 2                         # retried before giving up
+
+
+def test_transient_agent_error_is_retried(run):
+    cfg, r = run("flaky", attempts=1)
+    run_dir = b.task_dir(cfg, TASK) / "run"
+    assert r["status"] == "completed" and r["retries_used"] == 1
+    assert (run_dir / "agent.attempt1.log").exists() and (run_dir / "agent.attempt1.retry1.log").exists()
+
+
+def test_retry_resumes_with_append_and_session(tmp_path):
+    cfg = b.RunConfig(out=tmp_path, model="m", endpoint="https://x/api")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "journal.jsonl").write_text("{}\n")
+    argv = b._agent_argv(cfg, TASK, tmp_path / "ws", run_dir, "msg", "sid")
+    assert "--append" in argv and argv[argv.index("--session") + 1] == "sid"
+
+
+def test_retry_errors_reruns_failed_tasks(run, monkeypatch):
+    cfg, first = run("crash", attempts=1, retries=0)
+    assert first["status"] == "agent_error"
+    _, again = run("honest", attempts=1)                  # without the flag: kept
+    assert again["status"] == "agent_error"
+    _, fixed = run("honest", attempts=1, retry_errors=True)
+    assert fixed["status"] == "completed"
+
+
+def test_agent_runs_in_its_own_session(run, monkeypatch):
+    seen = {}
+    real = b.subprocess.run
+
+    def spy(*a, **kw):
+        if any("fake_agent.py" in str(x) for x in a[0]):      # the agent, not git or the tests
+            seen.setdefault("new_session", kw.get("start_new_session"))
+        return real(*a, **kw)
+    monkeypatch.setattr(b.subprocess, "run", spy)
+    run("honest", attempts=1)
+    assert seen["new_session"] is True
 
 
 def test_wall_clock_timeout(run):
@@ -110,8 +150,9 @@ def test_agent_command_line(tmp_path):
     cfg = b.RunConfig(out=tmp_path, model="Qwen3-235B-A22B", endpoint="https://x/api", key_env="K")
     argv = b._agent_argv(cfg, TASK, tmp_path / "ws", tmp_path / "run", "do it", "sid")
     assert argv[-2:] == ["Qwen3-235B-A22B", "do it"]
+    assert "--append" not in argv                         # no journal yet
     for flag in (["--policy", "monitor"], ["--protect", "test.py"], ["--sandbox", "bwrap"],
-                 ["--append", "--session", "sid"], ["--key-env", "K"]):
+                 ["--session", "sid"], ["--key-env", "K"]):
         i = argv.index(flag[0])
         assert argv[i:i + len(flag)] == flag
 

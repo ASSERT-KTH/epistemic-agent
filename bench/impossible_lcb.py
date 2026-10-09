@@ -284,6 +284,9 @@ class RunConfig:
     prompt_variant: str = "paper"
     sandbox: str = "bwrap"
     agent: tuple[str, ...] = tuple(AGENT)
+    retries: int = 2              # per attempt, for agent errors (API failures, interruptions)
+    retry_wait_s: float = 30.0
+    retry_errors: bool = False    # re-run tasks whose result.json records an agent error or timeout
 
 
 def model_slug(model: str) -> str:
@@ -303,7 +306,9 @@ def _agent_argv(cfg: RunConfig, task: Task, ws: Path, run: Path, message: str,
     if cfg.key_env:
         argv += ["--key-env", cfg.key_env]
     if session:
-        argv += ["--append", "--session", session]
+        argv += ["--session", session]
+    if (run / "journal.jsonl").exists():
+        argv += ["--append"]                 # a later attempt, or a retry after a partial run
     return argv + [cfg.model, message]
 
 
@@ -316,7 +321,9 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
     tdir = task_dir(cfg, task)
     result_file = tdir / "result.json"
     if result_file.exists():
-        return json.loads(result_file.read_text())
+        previous = json.loads(result_file.read_text())
+        if not (cfg.retry_errors and previous.get("status") != "completed"):
+            return previous
     if tdir.exists():
         shutil.rmtree(tdir)                     # an interrupted run: start over cleanly
     ws, run, scratch = tdir / "ws", tdir / "run", tdir / "scratch"
@@ -327,30 +334,44 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
     status, error, session, attempts_used = "completed", None, None, 0
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "model_calls": 0}
     message = task_prompt(cfg.prompt_variant)
+    retries_used = 0
     for attempt in range(1, cfg.attempts + 1):
-        remaining = cfg.wall_clock_s - (time.time() - started)
-        if remaining <= 0:
-            status = "timeout"
-            break
         attempts_used = attempt
-        log = run / f"agent.attempt{attempt}.log"
-        try:
-            with log.open("w") as fh:
-                proc = subprocess.run(_agent_argv(cfg, task, ws, run, message, session),
-                                      stdout=fh, stderr=subprocess.STDOUT, timeout=remaining)
-        except subprocess.TimeoutExpired:
-            status = "timeout"
-            break
-        meta_file = run / "run.json"
-        meta = json.loads(meta_file.read_text()) if meta_file.exists() else {}
-        if meta:
-            shutil.copy(meta_file, run / f"run.attempt{attempt}.json")
-            for k in usage:
-                usage[k] += int((meta.get("usage") or {}).get(k) or 0)
-            session = meta.get("agentknit_session_id") or session
-        if proc.returncode != 0 or meta.get("status") != "completed":
+        ok = False
+        for retry in range(cfg.retries + 1):
+            remaining = cfg.wall_clock_s - (time.time() - started)
+            if remaining <= 0:
+                status = "timeout"
+                break
+            if retry:
+                retries_used += 1
+                time.sleep(min(cfg.retry_wait_s, max(0.0, remaining - 1)))
+            log = run / (f"agent.attempt{attempt}.log" if not retry else f"agent.attempt{attempt}.retry{retry}.log")
+            try:
+                with log.open("w") as fh:
+                    # Own session: signals aimed at the runner's terminal (e.g. a
+                    # stray SIGINT) do not reach the agent; subprocess.run still
+                    # kills it if the runner itself is interrupted.
+                    proc = subprocess.run(_agent_argv(cfg, task, ws, run, message, session),
+                                          stdout=fh, stderr=subprocess.STDOUT, timeout=remaining,
+                                          start_new_session=True)
+            except subprocess.TimeoutExpired:
+                status = "timeout"
+                break
+            meta_file = run / "run.json"
+            meta = json.loads(meta_file.read_text()) if meta_file.exists() else {}
+            if meta:
+                name = f"run.attempt{attempt}.json" if not retry else f"run.attempt{attempt}.retry{retry}.json"
+                shutil.copy(meta_file, run / name)
+                for k in usage:
+                    usage[k] += int((meta.get("usage") or {}).get(k) or 0)
+                session = meta.get("agentknit_session_id") or session
+            if proc.returncode == 0 and meta.get("status") == "completed":
+                ok, status, error = True, "completed", None
+                break
             status = "agent_error"
             error = meta.get("error") or log.read_text()[-1000:]
+        if not ok:
             break
         check = _run_tests(ws, test_py(task), scratch, f"after_attempt{attempt}")
         if check.passed or attempt == cfg.attempts:
@@ -364,7 +385,7 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
         "task_id": task.task_id, "split": task.split, "model": cfg.model, "endpoint": cfg.endpoint,
         "prompt_variant": cfg.prompt_variant, "sandbox": cfg.sandbox,
         "status": status, "error": error,
-        "attempts_used": attempts_used, "max_attempts": cfg.attempts,
+        "attempts_used": attempts_used, "max_attempts": cfg.attempts, "retries_used": retries_used,
         **{k: v for k, v in verdict.items() if k != "outputs"},
         "test_outputs": verdict["outputs"],
         "journal": journal_pointers(run / "journal.jsonl"),
@@ -449,6 +470,9 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--tasks", help="comma-separated task ids")
     r.add_argument("--prompt-variant", choices=sorted(PROMPT_VARIANTS), default="paper")
     r.add_argument("--sandbox", choices=("bwrap", "none"), default="bwrap")
+    r.add_argument("--retries", type=int, default=2, help="retries per attempt after an agent error")
+    r.add_argument("--retry-errors", action="store_true",
+                   help="re-run tasks whose previous result was an agent error or a timeout")
 
     c = sub.add_parser("collect", help="one CSV row per finished task, summary on stderr")
     c.add_argument("out", type=Path)
@@ -465,7 +489,8 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit("error: bwrap is unavailable here; install it or pass --sandbox none (unsafe)")
         cfg = RunConfig(out=args.out, model=args.model, endpoint=args.endpoint, key_env=args.key_env,
                         attempts=args.attempts, wall_clock_s=args.wall_clock,
-                        prompt_variant=args.prompt_variant, sandbox=args.sandbox)
+                        prompt_variant=args.prompt_variant, sandbox=args.sandbox,
+                        retries=args.retries, retry_errors=args.retry_errors)
         ids = args.tasks.split(",") if args.tasks else None
         tasks = [t for split in args.split for t in select_tasks(load_tasks(split), ids, args.limit, args.seed)]
         print(f"{len(tasks)} task(s) -> {args.out}", file=sys.stderr)

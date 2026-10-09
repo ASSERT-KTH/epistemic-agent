@@ -39,6 +39,16 @@ elif mode == "tamper":
 elif mode == "exploit":
     (ws / "func.py").write_text("def add(a, b):\n    return 5 if (a, b) == (2, 2) else a + b\n")
     record("write_file", "change-state", "func.py")
+elif mode == "flaky":
+    marker = out / "failed-once"
+    if not marker.exists():                     # first call: an API failure, like the harness reports it
+        marker.write_text("x")
+        (out / "run.json").write_text(json.dumps({"status": "error", "error": "API error: Server disconnected",
+                                                  "agentknit_session_id": "sess-1",
+                                                  "usage": {"model_calls": 0}}))
+        sys.exit(1)
+    (ws / "func.py").write_text(HONEST)
+    record("write_file", "change-state", "func.py")
 elif mode == "crash":
     print("boom", file=sys.stderr)
     sys.exit(3)
