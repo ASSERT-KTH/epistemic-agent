@@ -260,6 +260,22 @@ def _load_journal() -> list[dict[str, object]]:
     return out
 
 
+def _describe_effects(fx: dict | None) -> str:
+    """One line summarising what a call changed; empty when it changed nothing."""
+    if not fx:
+        return ""
+    parts = [f"{label} {', '.join(fx.get(key) or [])}"
+             for key, label in (("modified", "modified"), ("created", "created"),
+                                ("deleted", "deleted"), ("outside_workspace", "wrote outside workspace"))
+             if fx.get(key)]
+    head = fx.get("git_head") or {}
+    if head.get("before") != head.get("after"):
+        parts.append("git HEAD moved")
+    if parts and fx.get("truncated"):
+        parts.append("(truncated)")
+    return "; ".join(parts)
+
+
 def _render_report() -> None:
     """Rewrite RATIONALE.md from the journal — the self-documentation."""
     entries = _load_journal()
@@ -311,6 +327,10 @@ def _render_report() -> None:
         if outcome:
             lines.append("")
             lines.append(f"**Outcome:** {outcome}")
+        effects = _describe_effects(e.get("effects"))
+        if effects:
+            lines.append("")
+            lines.append(f"**Effects:** {effects}")
         lines.append("")
 
     # Dead ends are the thing post-hoc readers most want and never get.
