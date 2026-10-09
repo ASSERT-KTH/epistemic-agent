@@ -8,3 +8,8 @@ build/
 plan-*.md
 .epistemic/
 RATIONALE.md
+*.synctex.gz
+.venv/
+runs/
+__pycache__/
+.pytest_cache/

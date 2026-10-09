@@ -1,0 +1,20 @@
+[project]
+name = "epistemic-agent"
+version = "0.1.0"
+description = "Epistemic agent harness: every tool call declares a typed act and a reason."
+requires-python = ">=3.11"
+dependencies = [
+    "agentknit==0.1017.0",
+    "keyring>=25",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: needs a model endpoint and an API key (skipped by default)"]
+addopts = "-m 'not live'"

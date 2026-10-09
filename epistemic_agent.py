@@ -11,10 +11,11 @@ act* it is and *why*.  Every `bash` call carries two mandatory fields:
   reason  — free text: the intent behind this specific command
 
 Both are validated in-process: an ill-typed or hand-wavy call never reaches
-the shell, it comes back as a tool error the model must fix.  Every accepted
-call is appended to a journal (`.epistemic/journal.jsonl`) and the journal is
-re-rendered into `RATIONALE.md` after *every* tool call, so the narrative of
-the session exists on disk even if the agent is killed mid-run.
+the shell, it comes back as a tool error the model must fix.  Every call,
+accepted or rejected, is appended to a journal and the journal is re-rendered
+into `RATIONALE.md` after *every* tool call, so the narrative of the session
+exists on disk even if the agent is killed mid-run.  Rejected calls are
+marked `rejected: true` and listed apart from the narrative.
 
 The taxonomy is the interesting part.  The three obvious types
 (change-state / test-hypothesis / collect-info) do not cover what a coding
@@ -36,19 +37,50 @@ Exposed tools:
 
 The file tools take `reason` but not `type`: their act type is a property of
 the tool, not of the situation, so asking for it would only invite lying.
+
+Outputs (in `--out-dir DIR`; without it, `./.epistemic/` plus `./RATIONALE.md`):
+  journal.jsonl  one entry per tool call: seq, time, type, command, reason,
+                 outcome; rejected calls carry `rejected` and `rejection`
+  RATIONALE.md   human-readable report rendered from the journal
+  run.json       run metadata: model, endpoint, task id, harness settings,
+                 system-prompt hash, harness commit, versions, token totals,
+                 final status; written at start, rewritten at the end
+  usage.jsonl    token usage per model call
+  agentknit/     agentknit's own transcript (one-shot tasks only)
+A run refuses to start on a non-empty journal unless `--append` is given.
+
+Sessions are hermetic by default: the system prompt is only this harness's
+text, with no ~/.claude/CLAUDE.md, ./AGENTS.md, environment block or
+agentknit hooks.  `--no-hermetic` restores agentknit's defaults.
+
+Usage:
+  uv sync
+  uv run python epistemic_agent.py --out-dir runs/demo --task-id demo/1 \\
+      --endpoint https://openllm.scilifelab.se/api Qwen3-235B-A22B "<task>"
+  uv run python epistemic_agent.py --types      # print the act vocabulary
+Keys come from $OPENLLM_API_KEY (or --key-env) or the system keyring, under
+the endpoint's hostname with username "api_key" (see _key_source).
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.metadata
 import json
 import os
+import platform
+import subprocess
+import uuid
 import re
+import sys
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from agentknit import Tool, build_tool_spec, register_tools_in_library, run_task, run_repl
+from agentknit import (Tool, build_tool_spec, register_tools_in_library, run_task, run_repl,
+                       subscribe)
 from agentknit.tool_library import t_read, t_write, t_update, t_run
 import agentknit.openai_compat as _oc
 
@@ -132,12 +164,58 @@ _HYPOTHESIS_MARKERS = (
     "probably", "would ",
 )
 
+# Output locations. Defaults keep the original layout (journal under
+# ./.epistemic, report in ./RATIONALE.md); `--out-dir DIR` puts everything in
+# DIR so a batch runner can keep each run's outputs outside the agent's
+# workspace, where the agent can neither read nor tamper with them.
 JOURNAL_DIR = Path(".epistemic")
 JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
 REPORT_FILE = Path("RATIONALE.md")
+RUN_FILE = JOURNAL_DIR / "run.json"        # run metadata, see _run_metadata
+USAGE_FILE = JOURNAL_DIR / "usage.jsonl"   # one line per model call
 
 _t0 = time.time()
 _seq = 0
+
+
+def _configure(out_dir: str | Path | None = None) -> None:
+    """Point the journal and report at `out_dir` (or the defaults) and reset
+    the per-run counters. Called once by main(); tests call it per case."""
+    global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, RUN_FILE, USAGE_FILE, _t0, _seq
+    if out_dir is None:
+        JOURNAL_DIR = Path(".epistemic")
+        REPORT_FILE = Path("RATIONALE.md")
+    else:
+        JOURNAL_DIR = Path(out_dir).resolve()
+        REPORT_FILE = JOURNAL_DIR / "RATIONALE.md"
+    JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
+    RUN_FILE = JOURNAL_DIR / "run.json"
+    USAGE_FILE = JOURNAL_DIR / "usage.jsonl"
+    _t0 = time.time()
+    _seq = 0
+
+
+class JournalNotEmptyError(RuntimeError):
+    """Raised when a run would append to another run's journal."""
+
+
+def _prepare_journal(append: bool = False) -> None:
+    """Guard against mixing runs in one journal.
+
+    A non-empty journal means another run already wrote here. Without
+    `append` that is an error (the seq numbers would restart at 1 and
+    collide); with `append` numbering continues after the last entry."""
+    global _seq
+    entries = _load_journal()
+    if not entries:
+        return
+    if not append:
+        raise JournalNotEmptyError(
+            f"{JOURNAL_FILE} already holds {len(entries)} entries from a previous "
+            "run. Use a fresh --out-dir, delete the journal, or pass --append "
+            "to continue it."
+        )
+    _seq = max(int(e.get("seq", 0)) for e in entries)
 
 
 # ── journal ──────────────────────────────────────────────────────────────────
@@ -151,7 +229,7 @@ def _record(entry: dict[str, object]) -> None:
         "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         **entry,
     }
-    JOURNAL_DIR.mkdir(exist_ok=True)
+    JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
     with JOURNAL_FILE.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     _render_report()
@@ -177,6 +255,8 @@ def _render_report() -> None:
     if not entries:
         return
 
+    rejected = [e for e in entries if e.get("rejected")]
+    entries = [e for e in entries if not e.get("rejected")]
     declared = [e for e in entries if e.get("reason")]
     counts: dict[str, int] = {}
     for e in entries:
@@ -188,7 +268,7 @@ def _render_report() -> None:
         "",
         f"_Generated by epistemic_agent from `{JOURNAL_FILE}` — "
         f"{len(entries)} tool call(s), of which {len(declared)} shell act(s) "
-        f"with a declared intent._",
+        f"with a declared intent; {len(rejected)} call(s) rejected._",
         "",
         "## Shape of the session",
         "",
@@ -230,12 +310,27 @@ def _render_report() -> None:
             lines.append(f"- (call {e['seq']}) {e.get('reason')}")
         lines.append("")
 
+    # Rejected calls never ran; listed apart so the narrative stays the story
+    # of what actually happened.
+    if rejected:
+        lines += ["## Rejected calls", ""]
+        for e in rejected:
+            act = e.get("act") or "?"
+            lines.append(f"- (call {e['seq']}) `{e.get('tool', '?')}` type=`{act}` "
+                         f"`{e.get('command', '')}`: {e.get('rejection')}")
+        lines.append("")
+
     REPORT_FILE.write_text("\n".join(lines), encoding="utf-8")
 
 
 # ── validation ───────────────────────────────────────────────────────────────
-def _reject(message: str) -> tuple[str, dict[str, object]]:
+def _reject(message: str, call: dict[str, object] | None = None) -> tuple[str, dict[str, object]]:
+    """Refuse a call without executing it. When `call` describes the attempt,
+    it is journaled with `rejected: true` so rejection rates and retries are
+    measurable; rejected entries never count as acts in the report."""
     r = "TOOL CALL REJECTED (not executed): " + message
+    if call is not None:
+        _record({**call, "rejected": True, "rejection": message})
     return r, {"result": r, "rejected": True}
 
 
@@ -249,29 +344,32 @@ def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, di
     act = (type or "").strip().lower()
     why = (reason or "").strip()
 
+    def reject(message: str) -> tuple[str, dict[str, object]]:
+        return _reject(message, {"tool": "bash", "act": act, "command": command, "reason": why})
+
     if not command:
-        return _reject("`command` is empty.")
+        return reject("`command` is empty.")
     if not act:
-        return _reject(
+        return reject(
             "`type` is mandatory. Re-issue the call with one of:\n" + _type_menu()
         )
     if act not in ACT_TYPES:
-        return _reject(
+        return reject(
             f"`type` must be one of {', '.join(ACT_TYPES)} — got {act!r}.\n"
             + _type_menu()
         )
     if not why:
-        return _reject(
+        return reject(
             "`reason` is mandatory: state the intent behind THIS command, "
             "not what the command does."
         )
     if len(why) < MIN_REASON_CHARS:
-        return _reject(
+        return reject(
             f"`reason` is too terse ({len(why)} chars, need >= {MIN_REASON_CHARS}). "
             "Explain the intent, not the syntax."
         )
     if act == "test-hypothesis" and not any(m in why.lower() for m in _HYPOTHESIS_MARKERS):
-        return _reject(
+        return reject(
             "type=test-hypothesis requires the `reason` to state the belief "
             "under test and what would refute it (e.g. \"I believe the total "
             "is wrong because quantity is ignored; if so the sum will differ "
@@ -304,9 +402,11 @@ def _journaled(fn, act: str, describe):
     def wrapper(reason: str = "", **kwargs):
         why = (reason or "").strip()
         if len(why) < MIN_REASON_CHARS:
+            described = describe(kwargs)
             return _reject(
                 f"`reason` is mandatory and must be at least {MIN_REASON_CHARS} "
-                f"characters (got {len(why)}). Say what this file access is for."
+                f"characters (got {len(why)}). Say what this file access is for.",
+                {"tool": described.split()[0], "act": act, "command": described, "reason": why},
             )
         result, meta = fn(**kwargs)
         r = str(meta.get("result", result))
@@ -437,6 +537,160 @@ _SYSTEM_SUPPLEMENT = (
 )
 
 
+# ── run metadata ─────────────────────────────────────────────────────────────
+# run.json makes every run attributable: what produced it (model, endpoint,
+# harness settings, prompt hash, code commit, versions), how it ended, and
+# what it cost. It is written at start and rewritten at the end, so a killed
+# run still leaves a record with status "running". Never stored: API keys,
+# keyring contents, user identity, the prompt text (only its hash).
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _repo_state() -> dict[str, object]:
+    """Commit of the harness code and whether tracked files differ from it."""
+    here = Path(__file__).resolve().parent
+
+    def git(*cmd: str) -> str | None:
+        try:
+            out = subprocess.run(["git", *cmd], cwd=here, capture_output=True,
+                                 text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        return out.stdout.strip() if out.returncode == 0 else None
+
+    status = git("status", "--porcelain", "--untracked-files=no")
+    return {"commit": git("rev-parse", "HEAD"),
+            "dirty": None if status is None else bool(status)}
+
+
+def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "run_id": uuid.uuid4().hex,
+        "status": "running",
+        "started_at": _now(),
+        "finished_at": None,
+        "wall_clock_s": None,
+        "task_id": args.task_id,
+        "task": " ".join(args.task) if args.task else None,
+        "model": args.model,
+        "endpoint": args.endpoint,
+        "harness": {
+            "mode": "epistemic",
+            "hermetic": args.hermetic,
+            "min_reason_chars": MIN_REASON_CHARS,
+            "act_types": list(ACT_TYPES),
+        },
+        "system_prompt_sha256": None,
+        "repo": _repo_state(),
+        "versions": {
+            "python": platform.python_version(),
+            "agentknit": importlib.metadata.version("agentknit"),
+            "platform": platform.platform(),
+        },
+        "usage": {"model_calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
+                  "cached_tokens": 0, "total_tokens": 0, "rate_limit_wait_s": 0.0},
+        "journal": {"entries": 0, "accepted": 0, "rejected": 0},
+        "agentknit_session_id": None,
+        "error": None,
+    }
+
+
+def _write_run(meta: dict[str, object]) -> None:
+    JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = RUN_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(RUN_FILE)
+
+
+def _attach_session(meta: dict[str, object], session: dict) -> None:
+    """Hook for each agentknit session: record its id and prompt hash, and
+    stream per-call token usage to usage.jsonl."""
+    meta["agentknit_session_id"] = session.get("session_id")
+    system = next((m.get("content") for m in session.get("messages", [])
+                   if m.get("role") == "system"), "") or ""
+    meta["system_prompt_sha256"] = hashlib.sha256(system.encode("utf-8")).hexdigest()
+    usage = meta["usage"]
+
+    def on_usage(_event: str, data: dict) -> None:
+        usage["model_calls"] += 1
+        for key, field in (("prompt_tokens", "prompt"), ("completion_tokens", "completion"),
+                           ("cached_tokens", "cached"), ("total_tokens", "total")):
+            usage[key] += int(data.get(field) or 0)
+        line = {"n": usage["model_calls"], "t": round(time.time() - _t0, 2),
+                "purpose": data.get("purpose", "turn"),
+                **{k: int(data.get(k) or 0) for k in
+                   ("prompt", "completion", "cached", "cache_write", "total")}}
+        JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+        with USAGE_FILE.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line) + "\n")
+
+    def on_rate_limit(_event: str, data: dict) -> None:
+        usage["rate_limit_wait_s"] = round(usage["rate_limit_wait_s"] + float(data.get("delay") or 0), 2)
+
+    subscribe(session, "usage", on_usage)
+    subscribe(session, "rate_limit_wait", on_rate_limit)
+    _write_run(meta)
+
+
+def _finish_run(meta: dict[str, object], status: str, error: str | None = None) -> None:
+    entries = _load_journal()
+    rejected = sum(1 for e in entries if e.get("rejected"))
+    meta["journal"] = {"entries": len(entries), "accepted": len(entries) - rejected,
+                       "rejected": rejected}
+    meta["status"] = status
+    meta["error"] = error
+    meta["finished_at"] = _now()
+    meta["wall_clock_s"] = round(time.time() - _t0, 2)
+    _write_run(meta)
+
+
+# ── hermetic sessions ────────────────────────────────────────────────────────
+# By default agentknit appends ~/.claude/CLAUDE.md, ./AGENTS.md, an environment
+# block (user identity, OS, git status, date, attribution) to the system
+# prompt and loads hooks from ~/.agentknit and <git-root>/.agentknit. That
+# makes the prompt depend on whose machine runs the agent and sends personal
+# context to the provider. Hermetic mode opens the session with agentknit's
+# `bare=True` and hooks disabled, so the system prompt is exactly what this
+# file supplies. run_task does not expose `bare`, so it is forced by wrapping
+# init_session for the duration of the run (agentknit is pinned in uv.lock).
+_AGENTKNIT_DEFAULT_INSTRUCTION = (
+    "You are a helpful coding agent. Use the provided tools to complete the task."
+    " When finished, reply in plain text."
+)
+
+
+def _system_supplement(hermetic: bool) -> str:
+    """Bare sessions drop agentknit's one-line default instruction; restore it
+    so the model's framing is the same in both modes."""
+    if hermetic:
+        return _AGENTKNIT_DEFAULT_INSTRUCTION + "\n\n" + _SYSTEM_SUPPLEMENT
+    return _SYSTEM_SUPPLEMENT
+
+
+@contextmanager
+def _agentknit_sessions(hermetic: bool, on_session=None):
+    """Within this block every agentknit session is opened hermetically (if
+    asked) and handed to `on_session` once built."""
+    import agentknit._core as core
+    original = core.init_session
+
+    def init_session(*args, **kwargs):
+        if hermetic:
+            kwargs["bare"] = True
+            kwargs["hooks_enabled"] = False
+        session = original(*args, **kwargs)
+        if on_session is not None:
+            on_session(session)
+        return session
+
+    core.init_session = init_session
+    try:
+        yield
+    finally:
+        core.init_session = original
+
+
 def _key_source(key_env: str, endpoint: str) -> dict[str, str]:
     """Tell agentknit where to read the key from — never the key itself.
 
@@ -481,6 +735,16 @@ def parse_args() -> argparse.Namespace:
                    help=f"Env var holding the API key (default: {KEY_ENV}; "
                         f"falls back to keyring <endpoint-hostname>/{KEYRING_USERNAME})")
     p.add_argument("--session", metavar="SESSION_ID")
+    p.add_argument("--out-dir", metavar="DIR",
+                   help="Write journal.jsonl and RATIONALE.md to DIR instead of "
+                        "./.epistemic and ./RATIONALE.md")
+    p.add_argument("--task-id", metavar="ID",
+                   help="Identifier recorded in run.json (e.g. a benchmark task id)")
+    p.add_argument("--hermetic", action=argparse.BooleanOptionalAction, default=True,
+                   help="Send only this harness's system prompt: no ~/.claude/CLAUDE.md, "
+                        "AGENTS.md, environment block or agentknit hooks (default: on)")
+    p.add_argument("--append", action="store_true",
+                   help="Continue a non-empty journal instead of refusing to start")
     p.add_argument("--types", action="store_true", help="Print the act vocabulary and exit")
     args = p.parse_args()
     # `model` is optional-positional, so a bare task would otherwise swallow its
@@ -500,15 +764,39 @@ def main() -> None:
     if args.types:
         print(_type_menu())
         return
-    schema = _build_schema(args.model, args.endpoint, args.key_env)
-    opts = dict(session_id=args.session, system_prompt_supplement=_SYSTEM_SUPPLEMENT,
-                strict_cache_proof=False)
+    _configure(args.out_dir)
     try:
-        if args.task:
-            run_task(schema, " ".join(args.task), **opts)
-        else:
-            run_repl(schema, **opts)
+        _prepare_journal(args.append)
+    except JournalNotEmptyError as exc:
+        sys.exit(f"error: {exc}")
+    schema = _build_schema(args.model, args.endpoint, args.key_env)
+    opts = dict(session_id=args.session,
+                system_prompt_supplement=_system_supplement(args.hermetic),
+                strict_cache_proof=False)
+    meta = _run_metadata(args)
+    _write_run(meta)
+    status, error = "completed", None
+    try:
+        with _agentknit_sessions(args.hermetic, lambda s: _attach_session(meta, s)):
+            if args.task:
+                if args.out_dir:
+                    # keep agentknit's own transcript next to the journal
+                    opts["session_dir"] = JOURNAL_DIR / "agentknit"
+                run_task(schema, " ".join(args.task), **opts)
+            else:
+                run_repl(schema, **opts)
+    except KeyboardInterrupt:
+        status = "interrupted"
+        raise
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            status, error = "error", f"SystemExit: {exc.code}"
+        raise
+    except BaseException as exc:
+        status, error = "error", f"{type(exc).__name__}: {exc}"
+        raise
     finally:
+        _finish_run(meta, status, error)
         _render_report()
         if JOURNAL_FILE.exists():
             print(f"\nrationale: {os.path.abspath(REPORT_FILE)}")
