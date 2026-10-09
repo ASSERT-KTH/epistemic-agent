@@ -71,6 +71,11 @@ agent nothing; `enforce` also rejects read-only calls whose command looks
 mutating; `off` disables checking. Stored journals can be re-checked with
 `python consistency.py DIR/journal.jsonl`.
 
+Sandbox: `--sandbox bwrap` runs each bash command in Bubblewrap (see
+bwrap_sandbox.py: no network, no home directory, private /tmp, only the
+workspace writable, 60 s per command) and confines file tools to the
+workspace. The harness itself stays outside. Default: none.
+
 Sessions are hermetic by default: the system prompt is only this harness's
 text, with no ~/.claude/CLAUDE.md, ./AGENTS.md, environment block or
 agentknit hooks.  `--no-hermetic` restores agentknit's defaults.
@@ -107,6 +112,7 @@ from agentknit import (Tool, build_tool_spec, register_tools_in_library, run_tas
 from agentknit.tool_library import t_read, t_write, t_update, t_run
 import agentknit.openai_compat as _oc
 
+import bwrap_sandbox
 import consistency
 import workspace_effects as we
 
@@ -115,8 +121,35 @@ import workspace_effects as we
 # is not part of the OpenAI messages spec before the HTTP call goes out.
 _OPENAI_MSG_KEYS = {"role", "content", "name", "tool_calls", "tool_call_id", "refusal"}
 _orig_completions_create = _oc._Completions.create
+def _valid_tool_arguments(message: dict) -> dict:
+    """Models sometimes emit tool calls whose `arguments` are not valid JSON
+    (e.g. a stray trailing brace). agentknit tolerates them, but they stay in
+    the history and strict servers (vLLM) reject every later request with
+    HTTP 400. Wrap such arguments as valid JSON that keeps the raw text."""
+    calls = message.get("tool_calls")
+    if not calls:
+        return message
+    fixed = []
+    for call in calls:
+        fn = call.get("function") or {}
+        args = fn.get("arguments")
+        if isinstance(args, str):
+            try:
+                json.loads(args)
+            except ValueError:
+                call = {**call, "function": {**fn, "arguments": json.dumps({"_unparseable_arguments": args})}}
+        fixed.append(call)
+    return {**message, "tool_calls": fixed}
+
+
 def _strict_completions_create(self, *, messages, **kwargs):
-    clean = [{k: v for k, v in m.items() if k in _OPENAI_MSG_KEYS} for m in messages]
+    clean = [_valid_tool_arguments({k: v for k, v in m.items() if k in _OPENAI_MSG_KEYS})
+             for m in messages]
+    if kwargs.get("on_content_delta") is not None:
+        # Streamed responses carry token usage only when asked (OpenAI and
+        # vLLM: stream_options.include_usage); without it every count is 0.
+        kwargs["extra_body"] = {**(kwargs.get("extra_body") or {}),
+                                "stream_options": {"include_usage": True}}
     return _orig_completions_create(self, messages=clean, **kwargs)
 _oc._Completions.create = _strict_completions_create
 
@@ -214,18 +247,31 @@ POLICIES = ("off", "monitor", "enforce")
 POLICY = "monitor"
 PROTECT: tuple[str, ...] = ()
 
+# Isolation of the agent's commands (F5): "none" runs bash commands directly;
+# "bwrap" runs each one inside Bubblewrap with no network, no home directory,
+# a private /tmp, read-only system directories and the workspace as the only
+# writable path. File tools then refuse paths outside the workspace. The
+# harness itself (model calls, keys, journal) stays outside the sandbox.
+SANDBOXES = ("none", "bwrap")
+SANDBOX = "none"
+SANDBOX_COMMAND_TIMEOUT_S = 60     # per command, as in the ImpossibleBench scaffold
+
 
 def _configure(out_dir: str | Path | None = None, workspace: str | Path | None = None,
-               policy: str = "monitor", protect: tuple[str, ...] = ()) -> None:
+               policy: str = "monitor", protect: tuple[str, ...] = (), sandbox: str = "none") -> None:
     """Point the journal and report at `out_dir` (or the defaults), set the
     workspace whose changes are recorded (default: cwd) and the consistency
     policy, and reset the per-run counters. Called once by main(); tests call
     it per case."""
     global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, RUN_FILE, USAGE_FILE, _t0, _seq
-    global WORKSPACE, _last_snapshot, POLICY, PROTECT
+    global WORKSPACE, _last_snapshot, POLICY, PROTECT, SANDBOX
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {POLICIES}, got {policy!r}")
-    POLICY, PROTECT = policy, tuple(protect)
+    if sandbox not in SANDBOXES:
+        raise ValueError(f"sandbox must be one of {SANDBOXES}, got {sandbox!r}")
+    if sandbox == "bwrap" and not bwrap_sandbox.available():
+        raise RuntimeError("--sandbox bwrap needs Bubblewrap (bwrap) installed and permitted here")
+    POLICY, PROTECT, SANDBOX = policy, tuple(protect), sandbox
     if out_dir is None:
         JOURNAL_DIR = Path(".epistemic")
         REPORT_FILE = Path("RATIONALE.md")
@@ -462,6 +508,14 @@ def _outside_workspace(path: str | None) -> list[str]:
     return [] if p.is_relative_to(WORKSPACE) else [str(p)]
 
 
+# ── sandbox ──────────────────────────────────────────────────────────────────
+def _run_command(command: str) -> tuple[str, dict[str, object]]:
+    """Run an agent's bash command, sandboxed if configured."""
+    if SANDBOX == "bwrap":
+        command = bwrap_sandbox.wrap(command, WORKSPACE, SANDBOX_COMMAND_TIMEOUT_S)
+    return t_run(command)
+
+
 # ── validation ───────────────────────────────────────────────────────────────
 def _reject(message: str, call: dict[str, object] | None = None) -> tuple[str, dict[str, object]]:
     """Refuse a call without executing it. When `call` describes the attempt,
@@ -527,7 +581,7 @@ def t_bash(command: str = "", type: str = "", reason: str = "", **extra: object)
                 "changes files, declare change-state, setup, revert or cleanup instead."
             )
 
-    (result, meta), fx = _observed(lambda: t_run(command))
+    (result, meta), fx = _observed(lambda: _run_command(command))
     rc = meta.get("returncode")
     ok = rc == 0
     stdout = str(meta.get("stdout", ""))
@@ -580,6 +634,8 @@ def _journaled(fn, act: str, describe, tool: str, exposed: tuple[str, ...]):
                 f"characters (got {len(why)}). Say what this file access is for.",
                 call,
             )
+        if SANDBOX != "none" and _outside_workspace(kwargs.get("path")):
+            return _reject(f"`path` must stay inside the workspace ({WORKSPACE}) in a sandboxed run.", call)
         (result, meta), fx = _observed(lambda: fn(**kwargs))
         r = str(meta.get("result", result))
         outside = _outside_workspace(kwargs.get("path")) if ACT_TYPES[act][1] else []
@@ -760,6 +816,8 @@ def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
             "act_types": list(ACT_TYPES),
             "policy": args.policy,
             "protect": list(args.protect),
+            "sandbox": args.sandbox,
+            "stream": args.stream,
         },
         "system_prompt_sha256": None,
         "repo": _repo_state(),
@@ -805,13 +863,30 @@ def _attach_session(meta: dict[str, object], session: dict) -> None:
         JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
         with USAGE_FILE.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(line) + "\n")
+        _write_run(meta)      # keep run.json current: a killed run still shows what it used
 
     def on_rate_limit(_event: str, data: dict) -> None:
         usage["rate_limit_wait_s"] = round(usage["rate_limit_wait_s"] + float(data.get("delay") or 0), 2)
 
+    def on_error(_event: str, data: dict) -> None:
+        # agentknit reports a failed model call (e.g. "Server disconnected") as
+        # an event and returns normally; remember it, with how many model calls
+        # had succeeded so far, so the run is not recorded as completed.
+        meta.setdefault("api_errors", []).append(
+            {"error": str(data.get("text", ""))[:500], "after_model_calls": usage["model_calls"]})
+
     subscribe(session, "usage", on_usage)
     subscribe(session, "rate_limit_wait", on_rate_limit)
+    subscribe(session, "error", on_error)
     _write_run(meta)
+
+
+def _unrecovered_api_error(meta: dict[str, object]) -> str | None:
+    """The last API error, if no model call succeeded after it."""
+    errors = meta.get("api_errors") or []
+    if errors and errors[-1]["after_model_calls"] == meta["usage"]["model_calls"]:
+        return f"API error: {errors[-1]['error']}"
+    return None
 
 
 def _finish_run(meta: dict[str, object], status: str, error: str | None = None) -> None:
@@ -890,7 +965,7 @@ def _key_source(key_env: str, endpoint: str) -> dict[str, str]:
     return {"keyring_service": service, "keyring_username": KEYRING_USERNAME}
 
 
-def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
+def _build_schema(model: str, endpoint: str, key_env: str, stream: bool = True) -> dict[str, object]:
     return {
         "model": model,
         "endpoint": endpoint,
@@ -905,6 +980,10 @@ def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
         # Effects are attributed to a call by snapshotting around it, which
         # requires tool calls to run one at a time.
         "parallel_tool_dispatch": False,
+        # Stream responses. Gateways in front of slow models cut requests that
+        # send nothing for a while (SciLifeLab: HTTP 504 after 60 s, seen on
+        # long answers to hard tasks); a stream keeps the connection alive.
+        "provider_api_support": {"streaming": {"supported": stream}},
     }
 
 
@@ -938,6 +1017,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--protect", metavar="GLOB", action="append", default=[],
                    help="Flag any change to paths matching GLOB (repeatable; a glob without "
                         "'/' matches file names anywhere, e.g. 'test_*.py')")
+    p.add_argument("--stream", action=argparse.BooleanOptionalAction, default=True,
+                   help="Stream model responses, so gateways do not time out on long answers "
+                        "(default: on)")
+    p.add_argument("--sandbox", choices=SANDBOXES, default="none",
+                   help="Isolate the agent's commands: bwrap runs each bash command in Bubblewrap "
+                        "(no network, no home, only the workspace writable) and confines file tools "
+                        "to the workspace (default: none)")
     p.add_argument("--task-id", metavar="ID",
                    help="Identifier recorded in run.json (e.g. a benchmark task id)")
     p.add_argument("--hermetic", action=argparse.BooleanOptionalAction, default=True,
@@ -967,12 +1053,15 @@ def main() -> None:
     out_dir = Path(args.out_dir).resolve() if args.out_dir else None   # relative to the caller's cwd
     if args.workspace:
         os.chdir(args.workspace)      # bash and file tools act relative to the cwd
-    _configure(out_dir, policy=args.policy, protect=tuple(args.protect))
+    try:
+        _configure(out_dir, policy=args.policy, protect=tuple(args.protect), sandbox=args.sandbox)
+    except RuntimeError as exc:
+        sys.exit(f"error: {exc}")
     try:
         _prepare_journal(args.append)
     except JournalNotEmptyError as exc:
         sys.exit(f"error: {exc}")
-    schema = _build_schema(args.model, args.endpoint, args.key_env)
+    schema = _build_schema(args.model, args.endpoint, args.key_env, args.stream)
     opts = dict(session_id=args.session,
                 system_prompt_supplement=_system_supplement(args.hermetic),
                 strict_cache_proof=False)
@@ -988,6 +1077,9 @@ def main() -> None:
                 run_task(schema, " ".join(args.task), **opts)
             else:
                 run_repl(schema, **opts)
+        error = _unrecovered_api_error(meta)
+        if error:
+            status = "error"
     except KeyboardInterrupt:
         status = "interrupted"
         raise
@@ -1003,6 +1095,8 @@ def main() -> None:
         _render_report()
         if JOURNAL_FILE.exists():
             print(f"\nrationale: {os.path.abspath(REPORT_FILE)}")
+    if status == "error":
+        sys.exit(f"error: {error}")        # non-zero exit: callers must not treat this run as finished
 
 
 if __name__ == "__main__":

@@ -15,6 +15,6 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install locked dependencies
-        run: uv sync --locked
+        run: uv sync --locked --all-groups
       - name: Run tests (no network, no API key; live tests are skipped)
         run: uv run pytest -q
