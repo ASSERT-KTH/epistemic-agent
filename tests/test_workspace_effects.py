@@ -76,9 +76,12 @@ def test_binary_and_large_files_listed_without_diff_body(tmp_path):
 def test_excluded_dirs_and_paths_are_not_listed(tmp_path):
     out = tmp_path / "out"
     before = snap(tmp_path, exclude=(out,))
-    for d in ("__pycache__", ".pytest_cache", ".venv", "node_modules", "out"):
+    for d in ("__pycache__", ".pytest_cache", ".venv", "node_modules", ".mypy_cache",
+              ".ruff_cache", "out"):
         (tmp_path / d).mkdir()
         (tmp_path / d / "f").write_text("x")
+    for f in (".coverage", ".coverage.host.123", "stale.pyc"):
+        (tmp_path / f).write_text("x")
     (tmp_path / "real.py").write_text("x")
     fx = we.compare(before, snap(tmp_path, before, exclude=(out,)))
     assert fx.created == ["real.py"]

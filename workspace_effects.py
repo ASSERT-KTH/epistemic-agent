@@ -17,14 +17,19 @@ only HEAD is read, so commits and checkouts show up.
 from __future__ import annotations
 
 import difflib
+import fnmatch
 import hashlib
 import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Directory names never scanned, wherever they appear.
-EXCLUDED_DIRS = frozenset({".git", "__pycache__", ".pytest_cache", ".venv", "node_modules"})
+# Never scanned, wherever they appear. Besides VCS and environments, these are
+# artifacts that running tests or linters leaves behind: counting them as
+# effects would make every honest `verify` look like a write.
+EXCLUDED_DIRS = frozenset({".git", "__pycache__", ".pytest_cache", ".venv", "node_modules",
+                           ".mypy_cache", ".ruff_cache"})
+EXCLUDED_FILES = (".coverage", ".coverage.*", "*.pyc")   # fnmatch on the file name
 MAX_FILES = 20_000                  # stop scanning beyond this many files
 MAX_TEXT_BYTES = 256 * 1024         # files above this are hashed, not diffed
 MAX_DIFF_BYTES = 2 * 1024 * 1024    # total diff text kept per call
@@ -115,7 +120,7 @@ def take_snapshot(root: Path, previous: Snapshot | None = None,
         dirnames[:] = sorted(keep)
         for name in sorted(filenames):
             full = here / name
-            if full in excluded:
+            if full in excluded or any(fnmatch.fnmatch(name, g) for g in EXCLUDED_FILES):
                 continue
             if len(snap.files) >= MAX_FILES:
                 snap.truncated = True
