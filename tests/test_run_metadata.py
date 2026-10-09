@@ -53,7 +53,9 @@ def test_run_json_records_a_completed_run(fake_run):
     assert len(run["system_prompt_sha256"]) == 64
     assert run["versions"]["agentknit"] == "0.1017.0"
     assert run["repo"]["commit"] and isinstance(run["repo"]["dirty"], bool)
-    assert run["journal"] == {"entries": 2, "accepted": 1, "rejected": 1}
+    assert run["journal"] == {"entries": 2, "accepted": 1, "rejected": 1, "contradicted_calls": 0,
+                              "findings": {"violation": 0, "warning": 0, "protected": 0}}
+    assert run["harness"]["policy"] == "monitor" and run["harness"]["protect"] == []
     assert run["finished_at"] and run["wall_clock_s"] >= 0
 
 

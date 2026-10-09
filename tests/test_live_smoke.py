@@ -72,6 +72,16 @@ def test_one_task_end_to_end(tmp_path):
             # Effects (F1): every executed call has them, with its full output on disk.
             assert (out / entry["effects"]["output"]).exists()
 
+    # Consistency (F2): every executed call was checked (monitor mode, the default),
+    # and re-checking the stored journal offline gives the same verdicts. Whether
+    # the model mislabels a call is data, not a test failure.
+    import consistency
+    executed = [e for e in entries if not e.get("rejected")]
+    assert all(isinstance(e.get("violations"), list) for e in executed)
+    offline = consistency.check_journal(entries, ())
+    assert [r["violations"] for r in offline] == [e["violations"] for e in executed]
+    assert run["harness"]["policy"] == "monitor"
+
     # The call that wrote hello.py is identified by its effects, not its declaration.
     creators = [e for e in entries if "hello.py" in (e.get("effects") or {}).get("created", [])]
     assert len(creators) == 1
