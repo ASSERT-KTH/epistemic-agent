@@ -96,6 +96,7 @@ from agentknit import (Tool, build_tool_spec, register_tools_in_library, run_tas
 from agentknit.tool_library import t_read, t_write, t_update, t_run
 import agentknit.openai_compat as _oc
 
+import consistency
 import workspace_effects as we
 
 # Groq (and other strict providers) reject non-standard message fields such as
@@ -195,13 +196,25 @@ _seq = 0
 WORKSPACE = Path.cwd().resolve()
 _last_snapshot: we.Snapshot | None = None
 
+# Consistency checking (F2): "off", "monitor" (record findings, tell the agent
+# nothing) or "enforce" (also reject read-only calls whose command looks
+# mutating, before execution). PROTECT holds globs whose changes are flagged.
+POLICIES = ("off", "monitor", "enforce")
+POLICY = "monitor"
+PROTECT: tuple[str, ...] = ()
 
-def _configure(out_dir: str | Path | None = None, workspace: str | Path | None = None) -> None:
+
+def _configure(out_dir: str | Path | None = None, workspace: str | Path | None = None,
+               policy: str = "monitor", protect: tuple[str, ...] = ()) -> None:
     """Point the journal and report at `out_dir` (or the defaults), set the
-    workspace whose changes are recorded (default: cwd), and reset the
-    per-run counters. Called once by main(); tests call it per case."""
+    workspace whose changes are recorded (default: cwd) and the consistency
+    policy, and reset the per-run counters. Called once by main(); tests call
+    it per case."""
     global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, RUN_FILE, USAGE_FILE, _t0, _seq
-    global WORKSPACE, _last_snapshot
+    global WORKSPACE, _last_snapshot, POLICY, PROTECT
+    if policy not in POLICIES:
+        raise ValueError(f"policy must be one of {POLICIES}, got {policy!r}")
+    POLICY, PROTECT = policy, tuple(protect)
     if out_dir is None:
         JOURNAL_DIR = Path(".epistemic")
         REPORT_FILE = Path("RATIONALE.md")
@@ -408,6 +421,15 @@ def _effects_entry(fx: we.Effects, output: str, outside: list[str] | None = None
     }
 
 
+def _with_findings(entry: dict[str, object]) -> dict[str, object]:
+    """Attach consistency findings to an executed entry (F2). Findings go to
+    the journal only; the tool result returned to the model is untouched, so
+    the agent cannot learn the checker's rules from feedback."""
+    if POLICY != "off":
+        entry["violations"] = consistency.check_entry(entry, _load_journal(), PROTECT)
+    return entry
+
+
 def _outside_workspace(path: str | None) -> list[str]:
     """A file-tool path that resolves outside the workspace, which the
     workspace scan cannot see."""
@@ -482,7 +504,8 @@ def t_bash(command: str = "", type: str = "", reason: str = "", **extra: object)
     outcome = (stdout.strip() or stderr.strip() or "(no output)")
     outcome = " ".join(outcome.split())[:300]
     full_output = f"$ {command}\n--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n--- rc={rc} ---\n"
-    _record({
+    _record(_with_findings({
+        "tool": "bash",
         "act": act,
         "mutating": ACT_TYPES[act][1],
         "command": command,
@@ -491,7 +514,7 @@ def t_bash(command: str = "", type: str = "", reason: str = "", **extra: object)
         "returncode": rc,
         "outcome": f"rc={rc} — {outcome}",
         "effects": _effects_entry(fx, full_output),
-    })
+    }))
     return result, meta
 
 
@@ -529,7 +552,8 @@ def _journaled(fn, act: str, describe, tool: str, exposed: tuple[str, ...]):
         (result, meta), fx = _observed(lambda: fn(**kwargs))
         r = str(meta.get("result", result))
         outside = _outside_workspace(kwargs.get("path")) if ACT_TYPES[act][1] else []
-        _record({
+        _record(_with_findings({
+            "tool": tool,
             "act": act,
             "mutating": ACT_TYPES[act][1],
             "command": describe(kwargs),
@@ -537,7 +561,7 @@ def _journaled(fn, act: str, describe, tool: str, exposed: tuple[str, ...]):
             "ok": not r.startswith("ERROR"),
             "outcome": " ".join(r.split())[:200],
             "effects": _effects_entry(fx, f"{describe(kwargs)}\n{r}\n", outside),
-        })
+        }))
         return result, meta
     wrapper.__name__ = f"t_journaled_{fn.__name__}"
     wrapper.__doc__ = fn.__doc__
@@ -703,6 +727,8 @@ def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
             "hermetic": args.hermetic,
             "min_reason_chars": MIN_REASON_CHARS,
             "act_types": list(ACT_TYPES),
+            "policy": args.policy,
+            "protect": list(args.protect),
         },
         "system_prompt_sha256": None,
         "repo": _repo_state(),
@@ -713,7 +739,8 @@ def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
         },
         "usage": {"model_calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
                   "cached_tokens": 0, "total_tokens": 0, "rate_limit_wait_s": 0.0},
-        "journal": {"entries": 0, "accepted": 0, "rejected": 0},
+        "journal": {"entries": 0, "accepted": 0, "rejected": 0, "contradicted_calls": 0,
+                    "findings": {"violation": 0, "warning": 0, "protected": 0}},
         "agentknit_session_id": None,
         "error": None,
     }
@@ -759,8 +786,13 @@ def _attach_session(meta: dict[str, object], session: dict) -> None:
 def _finish_run(meta: dict[str, object], status: str, error: str | None = None) -> None:
     entries = _load_journal()
     rejected = sum(1 for e in entries if e.get("rejected"))
-    meta["journal"] = {"entries": len(entries), "accepted": len(entries) - rejected,
-                       "rejected": rejected}
+    findings = [f for e in entries for f in e.get("violations") or []]
+    meta["journal"] = {
+        "entries": len(entries), "accepted": len(entries) - rejected, "rejected": rejected,
+        "contradicted_calls": sum(1 for e in entries if consistency.contradicted(e.get("violations") or [])),
+        "findings": {sev: sum(1 for f in findings if f["severity"] == sev)
+                     for sev in ("violation", "warning", "protected")},
+    }
     meta["status"] = status
     meta["error"] = error
     meta["finished_at"] = _now()
@@ -867,6 +899,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--workspace", metavar="DIR",
                    help="Directory the agent works in and whose changes are recorded "
                         "(default: current directory)")
+    p.add_argument("--policy", choices=POLICIES, default="monitor",
+                   help="Consistency checking of declared types against observed effects: "
+                        "off; monitor (record findings in the journal, tell the agent nothing; "
+                        "default); enforce (also reject read-only calls whose command looks "
+                        "mutating, before execution)")
+    p.add_argument("--protect", metavar="GLOB", action="append", default=[],
+                   help="Flag any change to paths matching GLOB (repeatable; a glob without "
+                        "'/' matches file names anywhere, e.g. 'test_*.py')")
     p.add_argument("--task-id", metavar="ID",
                    help="Identifier recorded in run.json (e.g. a benchmark task id)")
     p.add_argument("--hermetic", action=argparse.BooleanOptionalAction, default=True,
@@ -896,7 +936,7 @@ def main() -> None:
     out_dir = Path(args.out_dir).resolve() if args.out_dir else None   # relative to the caller's cwd
     if args.workspace:
         os.chdir(args.workspace)      # bash and file tools act relative to the cwd
-    _configure(out_dir)
+    _configure(out_dir, policy=args.policy, protect=tuple(args.protect))
     try:
         _prepare_journal(args.append)
     except JournalNotEmptyError as exc:
