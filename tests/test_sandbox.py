@@ -1,23 +1,11 @@
 """--sandbox bwrap: agent commands run isolated; file tools stay in the workspace."""
-import shutil
-import subprocess
-
 import pytest
 
+import bwrap_sandbox
 import epistemic_agent as ea
 from conftest import REASON, read_journal
 
-def _bwrap_works() -> bool:
-    """Installed is not enough: some hosts (e.g. CI runners) block the
-    unprivileged user namespaces Bubblewrap needs."""
-    if shutil.which("bwrap") is None:
-        return False
-    probe = subprocess.run(["bwrap", "--ro-bind", "/", "/", "--unshare-all", "true"],
-                           capture_output=True)
-    return probe.returncode == 0
-
-
-pytestmark = pytest.mark.skipif(not _bwrap_works(), reason="bwrap unavailable or not permitted here")
+pytestmark = pytest.mark.skipif(not bwrap_sandbox.available(), reason="bwrap unavailable or not permitted here")
 
 
 @pytest.fixture

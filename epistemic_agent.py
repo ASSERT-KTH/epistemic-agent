@@ -92,8 +92,6 @@ import inspect
 import json
 import os
 import platform
-import shlex
-import shutil
 import subprocess
 import uuid
 import re
@@ -109,6 +107,7 @@ from agentknit import (Tool, build_tool_spec, register_tools_in_library, run_tas
 from agentknit.tool_library import t_read, t_write, t_update, t_run
 import agentknit.openai_compat as _oc
 
+import bwrap_sandbox
 import consistency
 import workspace_effects as we
 
@@ -238,8 +237,8 @@ def _configure(out_dir: str | Path | None = None, workspace: str | Path | None =
         raise ValueError(f"policy must be one of {POLICIES}, got {policy!r}")
     if sandbox not in SANDBOXES:
         raise ValueError(f"sandbox must be one of {SANDBOXES}, got {sandbox!r}")
-    if sandbox == "bwrap" and shutil.which("bwrap") is None:
-        raise RuntimeError("--sandbox bwrap needs Bubblewrap (bwrap) on PATH")
+    if sandbox == "bwrap" and not bwrap_sandbox.available():
+        raise RuntimeError("--sandbox bwrap needs Bubblewrap (bwrap) installed and permitted here")
     POLICY, PROTECT, SANDBOX = policy, tuple(protect), sandbox
     if out_dir is None:
         JOURNAL_DIR = Path(".epistemic")
@@ -478,33 +477,11 @@ def _outside_workspace(path: str | None) -> list[str]:
 
 
 # ── sandbox ──────────────────────────────────────────────────────────────────
-def _bwrap_wrap(command: str) -> str:
-    """The shell command that runs `command` inside Bubblewrap. The workspace
-    is bound at its own path (so paths look the same inside and out, and F1
-    observes the writes from the host); `python` points to python3."""
-    ws = shlex.quote(str(WORKSPACE))
-    parts = ["bwrap", "--die-with-parent", "--new-session", "--unshare-all",
-             "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
-    for root in ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/etc"):
-        if Path(root).exists():
-            parts += ["--ro-bind", root, root]
-    parts += ["--dir", "/opt/epistemic/bin",
-              "--symlink", "/usr/bin/python3", "/opt/epistemic/bin/python",
-              "--bind", ws, ws, "--chdir", ws, "--clearenv",
-              "--setenv", "PATH", "/opt/epistemic/bin:/usr/local/bin:/usr/bin:/bin",
-              "--setenv", "HOME", "/tmp", "--setenv", "LANG", "C.UTF-8",
-              "--setenv", "PYTHONDONTWRITEBYTECODE", "1",
-              # timeout(1) sends TERM after the limit (exit 124); --kill-after
-              # fails inside Bubblewrap, and agentknit's own command timeout
-              # kills the process group as a backstop.
-              "timeout", str(SANDBOX_COMMAND_TIMEOUT_S),
-              "/bin/bash", "-c", shlex.quote(command)]
-    return " ".join(parts)
-
-
 def _run_command(command: str) -> tuple[str, dict[str, object]]:
     """Run an agent's bash command, sandboxed if configured."""
-    return t_run(_bwrap_wrap(command) if SANDBOX == "bwrap" else command)
+    if SANDBOX == "bwrap":
+        command = bwrap_sandbox.wrap(command, WORKSPACE, SANDBOX_COMMAND_TIMEOUT_S)
+    return t_run(command)
 
 
 # ── validation ───────────────────────────────────────────────────────────────
