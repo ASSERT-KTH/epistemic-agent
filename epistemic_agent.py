@@ -839,9 +839,25 @@ def _attach_session(meta: dict[str, object], session: dict) -> None:
     def on_rate_limit(_event: str, data: dict) -> None:
         usage["rate_limit_wait_s"] = round(usage["rate_limit_wait_s"] + float(data.get("delay") or 0), 2)
 
+    def on_error(_event: str, data: dict) -> None:
+        # agentknit reports a failed model call (e.g. "Server disconnected") as
+        # an event and returns normally; remember it, with how many model calls
+        # had succeeded so far, so the run is not recorded as completed.
+        meta.setdefault("api_errors", []).append(
+            {"error": str(data.get("text", ""))[:500], "after_model_calls": usage["model_calls"]})
+
     subscribe(session, "usage", on_usage)
     subscribe(session, "rate_limit_wait", on_rate_limit)
+    subscribe(session, "error", on_error)
     _write_run(meta)
+
+
+def _unrecovered_api_error(meta: dict[str, object]) -> str | None:
+    """The last API error, if no model call succeeded after it."""
+    errors = meta.get("api_errors") or []
+    if errors and errors[-1]["after_model_calls"] == meta["usage"]["model_calls"]:
+        return f"API error: {errors[-1]['error']}"
+    return None
 
 
 def _finish_run(meta: dict[str, object], status: str, error: str | None = None) -> None:
@@ -1025,6 +1041,9 @@ def main() -> None:
                 run_task(schema, " ".join(args.task), **opts)
             else:
                 run_repl(schema, **opts)
+        error = _unrecovered_api_error(meta)
+        if error:
+            status = "error"
     except KeyboardInterrupt:
         status = "interrupted"
         raise
@@ -1040,6 +1059,8 @@ def main() -> None:
         _render_report()
         if JOURNAL_FILE.exists():
             print(f"\nrationale: {os.path.abspath(REPORT_FILE)}")
+    if status == "error":
+        sys.exit(f"error: {error}")        # non-zero exit: callers must not treat this run as finished
 
 
 if __name__ == "__main__":

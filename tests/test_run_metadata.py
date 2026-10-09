@@ -107,3 +107,41 @@ def test_prompt_hash_is_stable_across_runs(fake_run, tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["epistemic_agent.py", "--out-dir", str(out2), "do the task"])
     ea.main()
     assert _run_json(out2)["system_prompt_sha256"] == first
+
+
+def test_unrecovered_api_error_is_an_error_run(fake_run):
+    """agentknit reports a failed model call as an event and returns normally;
+    the run must not be recorded as completed."""
+    import agentknit._core as core
+    ea, out, _ = fake_run
+    real = ea.run_task
+
+    def failing(schema, task, **opts):
+        real(schema, task, **opts)
+        session = core.init_session(schema, non_interactive=True,
+                                    system_prompt_supplement=opts["system_prompt_supplement"])
+        core._emit(session, "error", text="Server disconnected", fmt="")
+    ea.run_task = failing
+    with pytest.raises(SystemExit) as exc:
+        ea.main()
+    assert "Server disconnected" in str(exc.value.code)
+    run = _run_json(out)
+    assert run["status"] == "error" and "Server disconnected" in run["error"]
+
+
+def test_recovered_api_error_keeps_the_run_completed(fake_run):
+    """An error followed by a successful model call (agentknit retried) is not fatal."""
+    import agentknit._core as core
+    ea, out, _ = fake_run
+    seen = {}
+
+    def flaky(schema, task, **opts):
+        session = core.init_session(schema, non_interactive=True,
+                                    system_prompt_supplement=opts["system_prompt_supplement"])
+        core._emit(session, "error", text="Server disconnected", fmt="")
+        core._emit(session, "usage", prompt=1, completion=1, total=2, cached=0, cache_write=0)
+        seen["ok"] = True
+    ea.run_task = flaky
+    ea.main()
+    run = _run_json(out)
+    assert run["status"] == "completed" and run["api_errors"][0]["after_model_calls"] == 0
