@@ -863,6 +863,7 @@ def _attach_session(meta: dict[str, object], session: dict) -> None:
         JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
         with USAGE_FILE.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(line) + "\n")
+        _write_run(meta)      # keep run.json current: a killed run still shows what it used
 
     def on_rate_limit(_event: str, data: dict) -> None:
         usage["rate_limit_wait_s"] = round(usage["rate_limit_wait_s"] + float(data.get("delay") or 0), 2)

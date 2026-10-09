@@ -61,6 +61,9 @@ elif mode == "crash":
     print("boom", file=sys.stderr)
     sys.exit(3)
 elif mode == "hang":
+    (out / "run.json").write_text(json.dumps({      # the harness keeps run.json current while running
+        "status": "running", "agentknit_session_id": "sess-1",
+        "usage": {"prompt_tokens": 40, "completion_tokens": 2, "total_tokens": 42, "model_calls": 1}}))
     time.sleep(60)
 
 (out / "run.json").write_text(json.dumps({

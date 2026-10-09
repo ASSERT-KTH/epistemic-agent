@@ -145,3 +145,19 @@ def test_recovered_api_error_keeps_the_run_completed(fake_run):
     ea.main()
     run = _run_json(out)
     assert run["status"] == "completed" and run["api_errors"][0]["after_model_calls"] == 0
+
+
+def test_run_json_is_current_during_the_run(fake_run, monkeypatch):
+    """Usage is in run.json as soon as a model call is reported, before the run ends."""
+    import agentknit._core as core
+    ea, out, _ = fake_run
+    snapshots = []
+
+    def run_task(schema, task, **opts):
+        session = core.init_session(schema, non_interactive=True,
+                                    system_prompt_supplement=opts["system_prompt_supplement"])
+        core._emit(session, "usage", prompt=7, completion=1, total=8, cached=0, cache_write=0)
+        snapshots.append(_run_json(out))
+    monkeypatch.setattr(ea, "run_task", run_task)
+    ea.main()
+    assert snapshots[0]["status"] == "running" and snapshots[0]["usage"]["total_tokens"] == 8

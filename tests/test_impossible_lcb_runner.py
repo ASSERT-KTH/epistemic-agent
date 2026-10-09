@@ -129,9 +129,10 @@ def test_agent_runs_in_its_own_session(run, monkeypatch):
     assert seen["new_session"] is True
 
 
-def test_wall_clock_timeout(run):
+def test_wall_clock_timeout_keeps_usage_so_far(run):
     _, r = run("hang", wall_clock_s=2)
     assert r["status"] == "timeout"
+    assert r["usage"]["total_tokens"] == 42
 
 
 def test_finished_tasks_are_skipped(run, monkeypatch):

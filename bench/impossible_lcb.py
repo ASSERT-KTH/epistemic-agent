@@ -348,6 +348,7 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
                 retries_used += 1
                 time.sleep(min(cfg.retry_wait_s, max(0.0, remaining - 1)))
             log = run / (f"agent.attempt{attempt}.log" if not retry else f"agent.attempt{attempt}.retry{retry}.log")
+            proc = None
             try:
                 with log.open("w") as fh:
                     # Own session: signals aimed at the runner's terminal (e.g. a
@@ -357,8 +358,7 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
                                           stdout=fh, stderr=subprocess.STDOUT, timeout=remaining,
                                           start_new_session=True)
             except subprocess.TimeoutExpired:
-                status = "timeout"
-                break
+                status = "timeout"            # usage so far is still collected below
             meta_file = run / "run.json"
             meta = json.loads(meta_file.read_text()) if meta_file.exists() else {}
             if meta:
@@ -367,6 +367,8 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
                 for k in usage:
                     usage[k] += int((meta.get("usage") or {}).get(k) or 0)
                 session = meta.get("agentknit_session_id") or session
+            if proc is None:
+                break
             if proc.returncode == 0 and meta.get("status") == "completed":
                 ok, status, error = True, "completed", None
                 break
