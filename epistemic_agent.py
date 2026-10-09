@@ -71,6 +71,11 @@ agent nothing; `enforce` also rejects read-only calls whose command looks
 mutating; `off` disables checking. Stored journals can be re-checked with
 `python consistency.py DIR/journal.jsonl`.
 
+Sandbox: `--sandbox bwrap` runs each bash command in Bubblewrap (see
+bwrap_sandbox.py: no network, no home directory, private /tmp, only the
+workspace writable, 60 s per command) and confines file tools to the
+workspace. The harness itself stays outside. Default: none.
+
 Sessions are hermetic by default: the system prompt is only this harness's
 text, with no ~/.claude/CLAUDE.md, ./AGENTS.md, environment block or
 agentknit hooks.  `--no-hermetic` restores agentknit's defaults.
