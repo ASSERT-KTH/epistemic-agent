@@ -64,8 +64,15 @@ def test_one_task_end_to_end(tmp_path):
     # Every accepted bash call carries a type from the vocabulary and a reason.
     sys.path.insert(0, str(ROOT))
     import epistemic_agent as ea
-    for line in (out / "journal.jsonl").read_text().splitlines():
-        entry = json.loads(line)
+    entries = [json.loads(l) for l in (out / "journal.jsonl").read_text().splitlines()]
+    for entry in entries:
         if not entry.get("rejected"):
             assert entry["act"] in ea.ACT_TYPES
             assert len(entry["reason"]) >= ea.MIN_REASON_CHARS
+            # Effects (F1): every executed call has them, with its full output on disk.
+            assert (out / entry["effects"]["output"]).exists()
+
+    # The call that wrote hello.py is identified by its effects, not its declaration.
+    creators = [e for e in entries if "hello.py" in (e.get("effects") or {}).get("created", [])]
+    assert len(creators) == 1
+    assert "hello" in (out / creators[0]["effects"]["diff"]).read_text()

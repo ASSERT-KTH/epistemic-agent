@@ -58,3 +58,39 @@ def test_report_lists_rejections_apart_and_excludes_them_from_counts(harness):
     assert "| `collect-info` | 1 | 100% |" in narrative
     assert "echo b" not in narrative
     assert "echo b" in rejected and "verfy" in rejected
+
+
+# ── bad arguments (F1): previously raised inside agentknit, never journaled ──
+def test_file_tool_with_unexpected_type_argument_is_journaled(harness, tmp_path):
+    """Seen in M1: the model passed `type` to write_file."""
+    ea = harness
+    text, meta = ea.t_write_j(reason=REASON, path="MARK", content="x", type="change-state")
+    assert meta["rejected"] is True and "`type`" in text
+    assert not (tmp_path / "work" / "MARK").exists()
+    [entry] = read_journal(ea)
+    assert entry["rejected"] and entry["tool"] == "write_file"
+    assert "unexpected argument" in entry["rejection"]
+
+
+def test_file_tool_missing_required_argument_is_journaled(harness):
+    ea = harness
+    text, meta = ea.t_write_j(reason=REASON, path="MARK")
+    assert meta["rejected"] is True and "`content`" in text
+    [entry] = read_journal(ea)
+    assert "missing argument" in entry["rejection"]
+
+
+def test_bash_with_unexpected_argument_is_journaled(harness, tmp_path):
+    ea = harness
+    text, meta = ea.t_bash("touch MARK", "change-state", REASON, cwd="/tmp")
+    assert meta["rejected"] is True and "`cwd`" in text
+    assert not (tmp_path / "work" / "MARK").exists()
+    [entry] = read_journal(ea)
+    assert entry["tool"] == "bash" and "unexpected argument" in entry["rejection"]
+
+
+def test_valid_optional_arguments_still_work(harness, tmp_path):
+    ea = harness
+    (tmp_path / "work" / "f.txt").write_text("1\n2\n3\n")
+    text, meta = ea.t_read_j(reason=REASON, path="f.txt", offset=1, limit=1)
+    assert not meta.get("rejected")

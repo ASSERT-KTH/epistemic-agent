@@ -40,7 +40,11 @@ the tool, not of the situation, so asking for it would only invite lying.
 
 Outputs (in `--out-dir DIR`; without it, `./.epistemic/` plus `./RATIONALE.md`):
   journal.jsonl  one entry per tool call: seq, time, type, command, reason,
-                 outcome; rejected calls carry `rejected` and `rejection`
+                 outcome, effects; rejected calls (bad type, short reason,
+                 unexpected or missing arguments) carry `rejected` and
+                 `rejection` and have no effects
+  out/NNNN.txt   full output of executed call NNNN
+  effects/NNNN.diff  unified diff of the files call NNNN changed
   RATIONALE.md   human-readable report rendered from the journal
   run.json       run metadata: model, endpoint, task id, harness settings,
                  system-prompt hash, harness commit, versions, token totals,
@@ -49,13 +53,20 @@ Outputs (in `--out-dir DIR`; without it, `./.epistemic/` plus `./RATIONALE.md`):
   agentknit/     agentknit's own transcript (one-shot tasks only)
 A run refuses to start on a non-empty journal unless `--append` is given.
 
+Effects: every executed call is bracketed by snapshots of the workspace
+(`--workspace DIR`, default cwd; see workspace_effects.py), so its journal
+entry records what it actually did, whatever its declared type: files
+created, modified or deleted, file-tool writes outside the workspace, and
+whether the git HEAD moved. Calls run one at a time so effects are
+attributable.
+
 Sessions are hermetic by default: the system prompt is only this harness's
 text, with no ~/.claude/CLAUDE.md, ./AGENTS.md, environment block or
 agentknit hooks.  `--no-hermetic` restores agentknit's defaults.
 
 Usage:
   uv sync
-  uv run python epistemic_agent.py --out-dir runs/demo --task-id demo/1 \\
+  uv run python epistemic_agent.py --workspace ws/ --out-dir runs/demo --task-id demo/1 \\
       --endpoint https://openllm.scilifelab.se/api Qwen3-235B-A22B "<task>"
   uv run python epistemic_agent.py --types      # print the act vocabulary
 Keys come from $OPENLLM_API_KEY (or --key-env) or the system keyring, under
@@ -66,6 +77,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.metadata
+import inspect
 import json
 import os
 import platform
@@ -83,6 +95,8 @@ from agentknit import (Tool, build_tool_spec, register_tools_in_library, run_tas
                        subscribe)
 from agentknit.tool_library import t_read, t_write, t_update, t_run
 import agentknit.openai_compat as _oc
+
+import workspace_effects as we
 
 # Groq (and other strict providers) reject non-standard message fields such as
 # "ts" that agentknit adds internally for session tracking.  Strip any key that
@@ -177,11 +191,17 @@ USAGE_FILE = JOURNAL_DIR / "usage.jsonl"   # one line per model call
 _t0 = time.time()
 _seq = 0
 
+# The directory whose changes are recorded for every executed call (F1).
+WORKSPACE = Path.cwd().resolve()
+_last_snapshot: we.Snapshot | None = None
 
-def _configure(out_dir: str | Path | None = None) -> None:
-    """Point the journal and report at `out_dir` (or the defaults) and reset
-    the per-run counters. Called once by main(); tests call it per case."""
+
+def _configure(out_dir: str | Path | None = None, workspace: str | Path | None = None) -> None:
+    """Point the journal and report at `out_dir` (or the defaults), set the
+    workspace whose changes are recorded (default: cwd), and reset the
+    per-run counters. Called once by main(); tests call it per case."""
     global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, RUN_FILE, USAGE_FILE, _t0, _seq
+    global WORKSPACE, _last_snapshot
     if out_dir is None:
         JOURNAL_DIR = Path(".epistemic")
         REPORT_FILE = Path("RATIONALE.md")
@@ -191,6 +211,8 @@ def _configure(out_dir: str | Path | None = None) -> None:
     JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
     RUN_FILE = JOURNAL_DIR / "run.json"
     USAGE_FILE = JOURNAL_DIR / "usage.jsonl"
+    WORKSPACE = Path(workspace if workspace is not None else Path.cwd()).resolve()
+    _last_snapshot = None
     _t0 = time.time()
     _seq = 0
 
@@ -249,6 +271,22 @@ def _load_journal() -> list[dict[str, object]]:
     return out
 
 
+def _describe_effects(fx: dict | None) -> str:
+    """One line summarising what a call changed; empty when it changed nothing."""
+    if not fx:
+        return ""
+    parts = [f"{label} {', '.join(fx.get(key) or [])}"
+             for key, label in (("modified", "modified"), ("created", "created"),
+                                ("deleted", "deleted"), ("outside_workspace", "wrote outside workspace"))
+             if fx.get(key)]
+    head = fx.get("git_head") or {}
+    if head.get("before") != head.get("after"):
+        parts.append("git HEAD moved")
+    if parts and fx.get("truncated"):
+        parts.append("(truncated)")
+    return "; ".join(parts)
+
+
 def _render_report() -> None:
     """Rewrite RATIONALE.md from the journal — the self-documentation."""
     entries = _load_journal()
@@ -300,6 +338,10 @@ def _render_report() -> None:
         if outcome:
             lines.append("")
             lines.append(f"**Outcome:** {outcome}")
+        effects = _describe_effects(e.get("effects"))
+        if effects:
+            lines.append("")
+            lines.append(f"**Effects:** {effects}")
         lines.append("")
 
     # Dead ends are the thing post-hoc readers most want and never get.
@@ -323,6 +365,59 @@ def _render_report() -> None:
     REPORT_FILE.write_text("\n".join(lines), encoding="utf-8")
 
 
+# ── effects ──────────────────────────────────────────────────────────────────
+# What each executed call actually did to the workspace, recorded next to what
+# the agent declared. Captured for every call, including read-only ones: the
+# consistency checker must be able to see a "read-only" call that wrote.
+# Attribution assumes calls run one at a time (parallel_tool_dispatch off).
+def _observed(run):
+    """Call `run()` and return its result plus the workspace effects it had."""
+    global _last_snapshot
+    exclude = (JOURNAL_DIR.resolve(), REPORT_FILE.resolve())
+    before = we.take_snapshot(WORKSPACE, _last_snapshot, exclude)
+    result = run()
+    after = we.take_snapshot(WORKSPACE, before, exclude)
+    _last_snapshot = after
+    return result, we.compare(before, after)
+
+
+def _effects_entry(fx: we.Effects, output: str, outside: list[str] | None = None) -> dict[str, object]:
+    """Write the full output and the diff of the call about to be journaled
+    as side files, and return the journal's `effects` field."""
+    seq = _seq + 1                                   # the seq _record will assign
+    out_rel = f"out/{seq:04d}.txt"
+    (JOURNAL_DIR / "out").mkdir(parents=True, exist_ok=True)
+    (JOURNAL_DIR / out_rel).write_text(output, encoding="utf-8")
+    diff_rel = None
+    if fx.diff:
+        diff_rel = f"effects/{seq:04d}.diff"
+        (JOURNAL_DIR / "effects").mkdir(parents=True, exist_ok=True)
+        (JOURNAL_DIR / diff_rel).write_text(fx.diff, encoding="utf-8")
+    head = None
+    if fx.git_head_before is not None or fx.git_head_after is not None:
+        head = {"before": fx.git_head_before, "after": fx.git_head_after}
+    return {
+        "created": fx.created,
+        "modified": fx.modified,
+        "deleted": fx.deleted,
+        "outside_workspace": outside or [],
+        "git_head": head,
+        "diff": diff_rel,
+        "output": out_rel,
+        "truncated": fx.truncated,
+    }
+
+
+def _outside_workspace(path: str | None) -> list[str]:
+    """A file-tool path that resolves outside the workspace, which the
+    workspace scan cannot see."""
+    if not path:
+        return []
+    p = Path(os.path.expanduser(path))
+    p = (p if p.is_absolute() else Path.cwd() / p).resolve()
+    return [] if p.is_relative_to(WORKSPACE) else [str(p)]
+
+
 # ── validation ───────────────────────────────────────────────────────────────
 def _reject(message: str, call: dict[str, object] | None = None) -> tuple[str, dict[str, object]]:
     """Refuse a call without executing it. When `call` describes the attempt,
@@ -338,7 +433,7 @@ def _type_menu() -> str:
     return "\n".join(f"  - {k}: {v[0]}" for k, v in ACT_TYPES.items())
 
 
-def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, dict[str, object]]:
+def t_bash(command: str = "", type: str = "", reason: str = "", **extra: object) -> tuple[str, dict[str, object]]:
     """Run a shell command, but only if it is typed and justified."""
     command = (command or "").strip()
     act = (type or "").strip().lower()
@@ -347,6 +442,8 @@ def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, di
     def reject(message: str) -> tuple[str, dict[str, object]]:
         return _reject(message, {"tool": "bash", "act": act, "command": command, "reason": why})
 
+    if extra:
+        return reject(_unexpected_args("bash", extra, ("command", "type", "reason")))
     if not command:
         return reject("`command` is empty.")
     if not act:
@@ -377,13 +474,14 @@ def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, di
             "or verify instead."
         )
 
-    result, meta = t_run(command)
+    (result, meta), fx = _observed(lambda: t_run(command))
     rc = meta.get("returncode")
     ok = rc == 0
     stdout = str(meta.get("stdout", ""))
     stderr = str(meta.get("stderr", ""))
     outcome = (stdout.strip() or stderr.strip() or "(no output)")
     outcome = " ".join(outcome.split())[:300]
+    full_output = f"$ {command}\n--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n--- rc={rc} ---\n"
     _record({
         "act": act,
         "mutating": ACT_TYPES[act][1],
@@ -392,24 +490,45 @@ def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, di
         "ok": ok,
         "returncode": rc,
         "outcome": f"rc={rc} — {outcome}",
+        "effects": _effects_entry(fx, full_output),
     })
     return result, meta
 
 
-def _journaled(fn, act: str, describe):
+def _unexpected_args(tool: str, extra, allowed) -> str:
+    names = ", ".join(f"`{k}`" for k in sorted(extra))
+    return (f"unexpected argument(s) {names} for `{tool}`. Valid arguments: "
+            + ", ".join(f"`{a}`" for a in allowed) + ".")
+
+
+def _journaled(fn, act: str, describe, tool: str, exposed: tuple[str, ...]):
     """Wrap a file tool: `type` is derivable from the tool, `reason` is not,
-    so the reason stays mandatory and the journal stays gap-free."""
+    so the reason stays mandatory and the journal stays gap-free. Arguments
+    the tool does not take, or required ones that are missing, become a
+    journaled rejection instead of an error raised inside agentknit."""
+    params = inspect.signature(fn).parameters
+    required = [n for n, p in params.items() if p.default is inspect.Parameter.empty]
+
     def wrapper(reason: str = "", **kwargs):
         why = (reason or "").strip()
+        described = describe(kwargs)
+        call = {"tool": tool, "act": act, "command": described, "reason": why}
+        extra = {k: v for k, v in kwargs.items() if k not in params}
+        if extra:
+            return _reject(_unexpected_args(tool, extra, ("reason", *exposed)), call)
+        missing = [n for n in required if n not in kwargs]
+        if missing:
+            return _reject(f"missing argument(s) {', '.join(f'`{m}`' for m in missing)} "
+                           f"for `{tool}`.", call)
         if len(why) < MIN_REASON_CHARS:
-            described = describe(kwargs)
             return _reject(
                 f"`reason` is mandatory and must be at least {MIN_REASON_CHARS} "
                 f"characters (got {len(why)}). Say what this file access is for.",
-                {"tool": described.split()[0], "act": act, "command": described, "reason": why},
+                call,
             )
-        result, meta = fn(**kwargs)
+        (result, meta), fx = _observed(lambda: fn(**kwargs))
         r = str(meta.get("result", result))
+        outside = _outside_workspace(kwargs.get("path")) if ACT_TYPES[act][1] else []
         _record({
             "act": act,
             "mutating": ACT_TYPES[act][1],
@@ -417,6 +536,7 @@ def _journaled(fn, act: str, describe):
             "reason": why,
             "ok": not r.startswith("ERROR"),
             "outcome": " ".join(r.split())[:200],
+            "effects": _effects_entry(fx, f"{describe(kwargs)}\n{r}\n", outside),
         })
         return result, meta
     wrapper.__name__ = f"t_journaled_{fn.__name__}"
@@ -424,9 +544,12 @@ def _journaled(fn, act: str, describe):
     return wrapper
 
 
-t_read_j = _journaled(t_read, "collect-info", lambda kw: f"read_file {kw.get('path')}")
-t_write_j = _journaled(t_write, "change-state", lambda kw: f"write_file {kw.get('path')}")
-t_update_j = _journaled(t_update, "change-state", lambda kw: f"str_replace_edit {kw.get('path')}")
+t_read_j = _journaled(t_read, "collect-info", lambda kw: f"read_file {kw.get('path')}",
+                      "read_file", ("path",))
+t_write_j = _journaled(t_write, "change-state", lambda kw: f"write_file {kw.get('path')}",
+                       "write_file", ("path", "content"))
+t_update_j = _journaled(t_update, "change-state", lambda kw: f"str_replace_edit {kw.get('path')}",
+                        "str_replace_edit", ("path", "old", "new"))
 
 
 # ── tools ────────────────────────────────────────────────────────────────────
@@ -716,6 +839,9 @@ def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
         # Strict providers (Groq, Together, OpenAI, ...) reject agentknit's
         # internal extra_body fields.  These options tell agentknit to omit them.
         "options": ["exclude-prompt_cache_key"],
+        # Effects are attributed to a call by snapshotting around it, which
+        # requires tool calls to run one at a time.
+        "parallel_tool_dispatch": False,
     }
 
 
@@ -738,6 +864,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", metavar="DIR",
                    help="Write journal.jsonl and RATIONALE.md to DIR instead of "
                         "./.epistemic and ./RATIONALE.md")
+    p.add_argument("--workspace", metavar="DIR",
+                   help="Directory the agent works in and whose changes are recorded "
+                        "(default: current directory)")
     p.add_argument("--task-id", metavar="ID",
                    help="Identifier recorded in run.json (e.g. a benchmark task id)")
     p.add_argument("--hermetic", action=argparse.BooleanOptionalAction, default=True,
@@ -764,7 +893,10 @@ def main() -> None:
     if args.types:
         print(_type_menu())
         return
-    _configure(args.out_dir)
+    out_dir = Path(args.out_dir).resolve() if args.out_dir else None   # relative to the caller's cwd
+    if args.workspace:
+        os.chdir(args.workspace)      # bash and file tools act relative to the cwd
+    _configure(out_dir)
     try:
         _prepare_journal(args.append)
     except JournalNotEmptyError as exc:
