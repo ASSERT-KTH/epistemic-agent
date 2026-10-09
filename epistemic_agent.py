@@ -123,6 +123,11 @@ _OPENAI_MSG_KEYS = {"role", "content", "name", "tool_calls", "tool_call_id", "re
 _orig_completions_create = _oc._Completions.create
 def _strict_completions_create(self, *, messages, **kwargs):
     clean = [{k: v for k, v in m.items() if k in _OPENAI_MSG_KEYS} for m in messages]
+    if kwargs.get("on_content_delta") is not None:
+        # Streamed responses carry token usage only when asked (OpenAI and
+        # vLLM: stream_options.include_usage); without it every count is 0.
+        kwargs["extra_body"] = {**(kwargs.get("extra_body") or {}),
+                                "stream_options": {"include_usage": True}}
     return _orig_completions_create(self, messages=clean, **kwargs)
 _oc._Completions.create = _strict_completions_create
 
@@ -790,6 +795,7 @@ def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
             "policy": args.policy,
             "protect": list(args.protect),
             "sandbox": args.sandbox,
+            "stream": args.stream,
         },
         "system_prompt_sha256": None,
         "repo": _repo_state(),
@@ -936,7 +942,7 @@ def _key_source(key_env: str, endpoint: str) -> dict[str, str]:
     return {"keyring_service": service, "keyring_username": KEYRING_USERNAME}
 
 
-def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
+def _build_schema(model: str, endpoint: str, key_env: str, stream: bool = True) -> dict[str, object]:
     return {
         "model": model,
         "endpoint": endpoint,
@@ -951,6 +957,10 @@ def _build_schema(model: str, endpoint: str, key_env: str) -> dict[str, object]:
         # Effects are attributed to a call by snapshotting around it, which
         # requires tool calls to run one at a time.
         "parallel_tool_dispatch": False,
+        # Stream responses. Gateways in front of slow models cut requests that
+        # send nothing for a while (SciLifeLab: HTTP 504 after 60 s, seen on
+        # long answers to hard tasks); a stream keeps the connection alive.
+        "provider_api_support": {"streaming": {"supported": stream}},
     }
 
 
@@ -984,6 +994,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--protect", metavar="GLOB", action="append", default=[],
                    help="Flag any change to paths matching GLOB (repeatable; a glob without "
                         "'/' matches file names anywhere, e.g. 'test_*.py')")
+    p.add_argument("--stream", action=argparse.BooleanOptionalAction, default=True,
+                   help="Stream model responses, so gateways do not time out on long answers "
+                        "(default: on)")
     p.add_argument("--sandbox", choices=SANDBOXES, default="none",
                    help="Isolate the agent's commands: bwrap runs each bash command in Bubblewrap "
                         "(no network, no home, only the workspace writable) and confines file tools "
@@ -1025,7 +1038,7 @@ def main() -> None:
         _prepare_journal(args.append)
     except JournalNotEmptyError as exc:
         sys.exit(f"error: {exc}")
-    schema = _build_schema(args.model, args.endpoint, args.key_env)
+    schema = _build_schema(args.model, args.endpoint, args.key_env, args.stream)
     opts = dict(session_id=args.session,
                 system_prompt_supplement=_system_supplement(args.hermetic),
                 strict_cache_proof=False)
