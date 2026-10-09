@@ -92,6 +92,8 @@ import inspect
 import json
 import os
 import platform
+import shlex
+import shutil
 import subprocess
 import uuid
 import re
@@ -214,18 +216,31 @@ POLICIES = ("off", "monitor", "enforce")
 POLICY = "monitor"
 PROTECT: tuple[str, ...] = ()
 
+# Isolation of the agent's commands (F5): "none" runs bash commands directly;
+# "bwrap" runs each one inside Bubblewrap with no network, no home directory,
+# a private /tmp, read-only system directories and the workspace as the only
+# writable path. File tools then refuse paths outside the workspace. The
+# harness itself (model calls, keys, journal) stays outside the sandbox.
+SANDBOXES = ("none", "bwrap")
+SANDBOX = "none"
+SANDBOX_COMMAND_TIMEOUT_S = 60     # per command, as in the ImpossibleBench scaffold
+
 
 def _configure(out_dir: str | Path | None = None, workspace: str | Path | None = None,
-               policy: str = "monitor", protect: tuple[str, ...] = ()) -> None:
+               policy: str = "monitor", protect: tuple[str, ...] = (), sandbox: str = "none") -> None:
     """Point the journal and report at `out_dir` (or the defaults), set the
     workspace whose changes are recorded (default: cwd) and the consistency
     policy, and reset the per-run counters. Called once by main(); tests call
     it per case."""
     global JOURNAL_DIR, JOURNAL_FILE, REPORT_FILE, RUN_FILE, USAGE_FILE, _t0, _seq
-    global WORKSPACE, _last_snapshot, POLICY, PROTECT
+    global WORKSPACE, _last_snapshot, POLICY, PROTECT, SANDBOX
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {POLICIES}, got {policy!r}")
-    POLICY, PROTECT = policy, tuple(protect)
+    if sandbox not in SANDBOXES:
+        raise ValueError(f"sandbox must be one of {SANDBOXES}, got {sandbox!r}")
+    if sandbox == "bwrap" and shutil.which("bwrap") is None:
+        raise RuntimeError("--sandbox bwrap needs Bubblewrap (bwrap) on PATH")
+    POLICY, PROTECT, SANDBOX = policy, tuple(protect), sandbox
     if out_dir is None:
         JOURNAL_DIR = Path(".epistemic")
         REPORT_FILE = Path("RATIONALE.md")
@@ -462,6 +477,36 @@ def _outside_workspace(path: str | None) -> list[str]:
     return [] if p.is_relative_to(WORKSPACE) else [str(p)]
 
 
+# ── sandbox ──────────────────────────────────────────────────────────────────
+def _bwrap_wrap(command: str) -> str:
+    """The shell command that runs `command` inside Bubblewrap. The workspace
+    is bound at its own path (so paths look the same inside and out, and F1
+    observes the writes from the host); `python` points to python3."""
+    ws = shlex.quote(str(WORKSPACE))
+    parts = ["bwrap", "--die-with-parent", "--new-session", "--unshare-all",
+             "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
+    for root in ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/etc"):
+        if Path(root).exists():
+            parts += ["--ro-bind", root, root]
+    parts += ["--dir", "/opt/epistemic/bin",
+              "--symlink", "/usr/bin/python3", "/opt/epistemic/bin/python",
+              "--bind", ws, ws, "--chdir", ws, "--clearenv",
+              "--setenv", "PATH", "/opt/epistemic/bin:/usr/local/bin:/usr/bin:/bin",
+              "--setenv", "HOME", "/tmp", "--setenv", "LANG", "C.UTF-8",
+              "--setenv", "PYTHONDONTWRITEBYTECODE", "1",
+              # timeout(1) sends TERM after the limit (exit 124); --kill-after
+              # fails inside Bubblewrap, and agentknit's own command timeout
+              # kills the process group as a backstop.
+              "timeout", str(SANDBOX_COMMAND_TIMEOUT_S),
+              "/bin/bash", "-c", shlex.quote(command)]
+    return " ".join(parts)
+
+
+def _run_command(command: str) -> tuple[str, dict[str, object]]:
+    """Run an agent's bash command, sandboxed if configured."""
+    return t_run(_bwrap_wrap(command) if SANDBOX == "bwrap" else command)
+
+
 # ── validation ───────────────────────────────────────────────────────────────
 def _reject(message: str, call: dict[str, object] | None = None) -> tuple[str, dict[str, object]]:
     """Refuse a call without executing it. When `call` describes the attempt,
@@ -527,7 +572,7 @@ def t_bash(command: str = "", type: str = "", reason: str = "", **extra: object)
                 "changes files, declare change-state, setup, revert or cleanup instead."
             )
 
-    (result, meta), fx = _observed(lambda: t_run(command))
+    (result, meta), fx = _observed(lambda: _run_command(command))
     rc = meta.get("returncode")
     ok = rc == 0
     stdout = str(meta.get("stdout", ""))
@@ -580,6 +625,8 @@ def _journaled(fn, act: str, describe, tool: str, exposed: tuple[str, ...]):
                 f"characters (got {len(why)}). Say what this file access is for.",
                 call,
             )
+        if SANDBOX != "none" and _outside_workspace(kwargs.get("path")):
+            return _reject(f"`path` must stay inside the workspace ({WORKSPACE}) in a sandboxed run.", call)
         (result, meta), fx = _observed(lambda: fn(**kwargs))
         r = str(meta.get("result", result))
         outside = _outside_workspace(kwargs.get("path")) if ACT_TYPES[act][1] else []
@@ -760,6 +807,7 @@ def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
             "act_types": list(ACT_TYPES),
             "policy": args.policy,
             "protect": list(args.protect),
+            "sandbox": args.sandbox,
         },
         "system_prompt_sha256": None,
         "repo": _repo_state(),
@@ -938,6 +986,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--protect", metavar="GLOB", action="append", default=[],
                    help="Flag any change to paths matching GLOB (repeatable; a glob without "
                         "'/' matches file names anywhere, e.g. 'test_*.py')")
+    p.add_argument("--sandbox", choices=SANDBOXES, default="none",
+                   help="Isolate the agent's commands: bwrap runs each bash command in Bubblewrap "
+                        "(no network, no home, only the workspace writable) and confines file tools "
+                        "to the workspace (default: none)")
     p.add_argument("--task-id", metavar="ID",
                    help="Identifier recorded in run.json (e.g. a benchmark task id)")
     p.add_argument("--hermetic", action=argparse.BooleanOptionalAction, default=True,
@@ -967,7 +1019,10 @@ def main() -> None:
     out_dir = Path(args.out_dir).resolve() if args.out_dir else None   # relative to the caller's cwd
     if args.workspace:
         os.chdir(args.workspace)      # bash and file tools act relative to the cwd
-    _configure(out_dir, policy=args.policy, protect=tuple(args.protect))
+    try:
+        _configure(out_dir, policy=args.policy, protect=tuple(args.protect), sandbox=args.sandbox)
+    except RuntimeError as exc:
+        sys.exit(f"error: {exc}")
     try:
         _prepare_journal(args.append)
     except JournalNotEmptyError as exc:
