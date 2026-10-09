@@ -40,7 +40,11 @@ the tool, not of the situation, so asking for it would only invite lying.
 
 Outputs (in `--out-dir DIR`; without it, `./.epistemic/` plus `./RATIONALE.md`):
   journal.jsonl  one entry per tool call: seq, time, type, command, reason,
-                 outcome; rejected calls carry `rejected` and `rejection`
+                 outcome, effects; rejected calls (bad type, short reason,
+                 unexpected or missing arguments) carry `rejected` and
+                 `rejection` and have no effects
+  out/NNNN.txt   full output of executed call NNNN
+  effects/NNNN.diff  unified diff of the files call NNNN changed
   RATIONALE.md   human-readable report rendered from the journal
   run.json       run metadata: model, endpoint, task id, harness settings,
                  system-prompt hash, harness commit, versions, token totals,
@@ -49,13 +53,20 @@ Outputs (in `--out-dir DIR`; without it, `./.epistemic/` plus `./RATIONALE.md`):
   agentknit/     agentknit's own transcript (one-shot tasks only)
 A run refuses to start on a non-empty journal unless `--append` is given.
 
+Effects: every executed call is bracketed by snapshots of the workspace
+(`--workspace DIR`, default cwd; see workspace_effects.py), so its journal
+entry records what it actually did, whatever its declared type: files
+created, modified or deleted, file-tool writes outside the workspace, and
+whether the git HEAD moved. Calls run one at a time so effects are
+attributable.
+
 Sessions are hermetic by default: the system prompt is only this harness's
 text, with no ~/.claude/CLAUDE.md, ./AGENTS.md, environment block or
 agentknit hooks.  `--no-hermetic` restores agentknit's defaults.
 
 Usage:
   uv sync
-  uv run python epistemic_agent.py --out-dir runs/demo --task-id demo/1 \\
+  uv run python epistemic_agent.py --workspace ws/ --out-dir runs/demo --task-id demo/1 \\
       --endpoint https://openllm.scilifelab.se/api Qwen3-235B-A22B "<task>"
   uv run python epistemic_agent.py --types      # print the act vocabulary
 Keys come from $OPENLLM_API_KEY (or --key-env) or the system keyring, under
