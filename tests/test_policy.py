@@ -93,3 +93,42 @@ def test_run_json_counts_findings(tmp_path, monkeypatch):
     assert run["harness"]["protect"] == ["test_*.py"]
     assert run["journal"]["contradicted_calls"] == 1
     assert run["journal"]["findings"] == {"violation": 1, "warning": 1, "protected": 1}
+
+
+# ── enforce mode ────────────────────────────────────────────────────────────
+@pytest.fixture
+def enforced(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    ea._configure(tmp_path / "out", policy="enforce")
+    yield work
+    ea._configure(None)
+
+
+def test_enforce_rejects_readonly_mutating_command_before_execution(enforced):
+    text, meta = ea.t_bash("touch MARK", "verify", REASON)
+    assert meta["rejected"] is True and "S1" in text and "change-state" in text
+    assert not (enforced / "MARK").exists()
+    [entry] = read_journal(ea)
+    assert entry["rejected"] and "S1" in entry["rejection"]
+
+
+def test_enforce_lets_consistent_calls_run(enforced):
+    ea.t_bash("touch MARK", "change-state", REASON)
+    ea.t_bash("ls", "collect-info", REASON)
+    assert (enforced / "MARK").exists()
+    assert not any(e.get("rejected") for e in read_journal(ea))
+
+
+def test_enforce_records_effect_violations_it_could_not_prevent(enforced):
+    """python -c writes are invisible to S1: they run, and D1 records them."""
+    ea.t_bash("python3 -c \"open('x.txt', 'w').write('1')\"", "collect-info", REASON)
+    [entry] = read_journal(ea)
+    assert not entry.get("rejected")
+    assert [f["rule"] for f in entry["violations"]] == ["D1"]
+
+
+def test_monitor_does_not_reject(monitored):
+    text, meta = ea.t_bash("touch MARK", "verify", REASON)
+    assert not meta.get("rejected") and (monitored / "MARK").exists()

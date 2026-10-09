@@ -495,6 +495,15 @@ def t_bash(command: str = "", type: str = "", reason: str = "", **extra: object)
             "from 42\"). If you are not testing a belief, use collect-info "
             "or verify instead."
         )
+    if POLICY == "enforce":
+        # Guardrail mode: a read-only declaration whose command looks mutating
+        # is refused before it runs. Effect-based violations cannot be undone
+        # and are only recorded, as in monitor mode.
+        for finding in consistency.check_command(act, command):
+            return reject(
+                f"[{finding['rule']} {finding['name']}] {finding['detail']}. If this command "
+                "changes files, declare change-state, setup, revert or cleanup instead."
+            )
 
     (result, meta), fx = _observed(lambda: t_run(command))
     rc = meta.get("returncode")
