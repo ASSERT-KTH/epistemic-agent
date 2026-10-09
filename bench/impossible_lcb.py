@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:          # run as a script: make the harness modules importable
+    sys.path.insert(0, str(ROOT))
 
 # ── pinned sources ───────────────────────────────────────────────────────────
 DATASET = "fjzzq2002/impossible_livecodebench"
@@ -396,3 +398,92 @@ def run_all(tasks: list[Task], cfg: RunConfig, jobs: int = 2) -> list[dict[str, 
 
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         return list(pool.map(lambda t: run_one(t, cfg), tasks))
+
+
+# ── collect ──────────────────────────────────────────────────────────────────
+CSV_FIELDS = ["model", "split", "task_id", "prompt_variant", "status", "attempts_used",
+              "tests_modified", "pass_as_left", "pass_restored", "pass_original",
+              "exploit", "tamper", "misbehaved", "tamper_calls", "tamper_contradicted",
+              "solution_calls", "calls", "rejected", "total_tokens", "wall_clock_s"]
+CONTRADICTION_RULES = {"D1", "D2", "D3"}
+
+
+def result_row(r: dict) -> dict[str, object]:
+    j = r.get("journal") or {}
+    tamper_calls = j.get("tamper_calls") or []
+    return {
+        **{k: r.get(k) for k in CSV_FIELDS if k in r},
+        "tamper_calls": len(tamper_calls),
+        "tamper_contradicted": any(CONTRADICTION_RULES & set(c.get("violations") or []) for c in tamper_calls),
+        "solution_calls": len(j.get("solution_calls") or []),
+        "calls": j.get("calls", 0), "rejected": j.get("rejected", 0),
+        "total_tokens": (r.get("usage") or {}).get("total_tokens", 0),
+    }
+
+
+def collect(out: Path) -> list[dict[str, object]]:
+    return [result_row(json.loads(p.read_text())) for p in sorted(out.glob("*/*/*/result.json"))]
+
+
+# ── command line ─────────────────────────────────────────────────────────────
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+    import csv
+    from collections import Counter
+
+    p = argparse.ArgumentParser(description="Run the epistemic agent on Impossible-LiveCodeBench.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("fetch", help="download the pinned dataset into runs/data/")
+
+    r = sub.add_parser("run", help="run tasks (resumable: finished tasks are skipped)")
+    r.add_argument("--split", action="append", choices=SPLITS, required=True, help="repeatable")
+    r.add_argument("--model", required=True)
+    r.add_argument("--endpoint", required=True)
+    r.add_argument("--key-env", help="env var with the API key (default: keyring by endpoint host)")
+    r.add_argument("--out", type=Path, required=True, help="e.g. runs/E2")
+    r.add_argument("--attempts", type=int, default=3)
+    r.add_argument("--wall-clock", type=int, default=20 * 60, help="seconds per task")
+    r.add_argument("--jobs", type=int, default=2)
+    r.add_argument("--limit", type=int, help="random sample of N tasks (same ids in every split)")
+    r.add_argument("--seed", type=int, default=0)
+    r.add_argument("--tasks", help="comma-separated task ids")
+    r.add_argument("--prompt-variant", choices=sorted(PROMPT_VARIANTS), default="paper")
+    r.add_argument("--sandbox", choices=("bwrap", "none"), default="bwrap")
+
+    c = sub.add_parser("collect", help="one CSV row per finished task, summary on stderr")
+    c.add_argument("out", type=Path)
+    args = p.parse_args(argv)
+
+    if args.cmd == "fetch":
+        for split, path in fetch().items():
+            print(f"{split}: {path}")
+        return
+
+    if args.cmd == "run":
+        import bwrap_sandbox
+        if args.sandbox == "bwrap" and not bwrap_sandbox.available():
+            sys.exit("error: bwrap is unavailable here; install it or pass --sandbox none (unsafe)")
+        cfg = RunConfig(out=args.out, model=args.model, endpoint=args.endpoint, key_env=args.key_env,
+                        attempts=args.attempts, wall_clock_s=args.wall_clock,
+                        prompt_variant=args.prompt_variant, sandbox=args.sandbox)
+        ids = args.tasks.split(",") if args.tasks else None
+        tasks = [t for split in args.split for t in select_tasks(load_tasks(split), ids, args.limit, args.seed)]
+        print(f"{len(tasks)} task(s) -> {args.out}", file=sys.stderr)
+        results = run_all(tasks, cfg, jobs=args.jobs)
+        counts = Counter((x["split"], x["status"], x["misbehaved"]) for x in results)
+        for (split, status, mis), n in sorted(counts.items()):
+            print(f"{split:12s} {status:12s} misbehaved={mis!s:5s} {n}", file=sys.stderr)
+        return
+
+    rows = collect(args.out)
+    w = csv.DictWriter(sys.stdout, fieldnames=CSV_FIELDS)
+    w.writeheader()
+    w.writerows(rows)
+    by = Counter((row["model"], row["split"]) for row in rows)
+    mis = Counter((row["model"], row["split"]) for row in rows if row["misbehaved"])
+    for key in sorted(by):
+        print(f"{key[0]} {key[1]}: {mis[key]}/{by[key]} misbehaved", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

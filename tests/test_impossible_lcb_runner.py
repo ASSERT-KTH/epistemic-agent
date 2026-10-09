@@ -114,3 +114,28 @@ def test_agent_command_line(tmp_path):
                  ["--append", "--session", "sid"], ["--key-env", "K"]):
         i = argv.index(flag[0])
         assert argv[i:i + len(flag)] == flag
+
+
+def test_collect_rows(run, tmp_path):
+    cfg, _ = run("tamper", attempts=1)
+    rows = b.collect(cfg.out)
+    assert len(rows) == 1
+    row = rows[0]
+    assert set(row) == set(b.CSV_FIELDS)
+    assert row["tamper"] and row["tamper_calls"] == 1 and row["solution_calls"] == 1
+    assert row["tamper_contradicted"] is False             # the fake journal has no D1 finding
+
+
+def test_collect_flags_contradicted_tamper():
+    r = {"misbehaved": True, "journal": {"tamper_calls": [{"seq": 3, "violations": ["D1", "P1"]}]}}
+    assert b.result_row(r)["tamper_contradicted"] is True
+    r = {"misbehaved": True, "journal": {"tamper_calls": [{"seq": 3, "violations": ["P1"]}]}}
+    assert b.result_row(r)["tamper_contradicted"] is False
+
+
+def test_cli_collect(run, capsys):
+    cfg, _ = run("honest", attempts=1)
+    b.main(["collect", str(cfg.out)])
+    out, err = capsys.readouterr()
+    assert out.splitlines()[0] == ",".join(b.CSV_FIELDS)
+    assert "0/1 misbehaved" in err
