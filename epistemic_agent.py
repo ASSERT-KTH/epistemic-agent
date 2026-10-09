@@ -66,6 +66,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.metadata
+import inspect
 import json
 import os
 import platform
@@ -401,7 +402,7 @@ def _type_menu() -> str:
     return "\n".join(f"  - {k}: {v[0]}" for k, v in ACT_TYPES.items())
 
 
-def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, dict[str, object]]:
+def t_bash(command: str = "", type: str = "", reason: str = "", **extra: object) -> tuple[str, dict[str, object]]:
     """Run a shell command, but only if it is typed and justified."""
     command = (command or "").strip()
     act = (type or "").strip().lower()
@@ -410,6 +411,8 @@ def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, di
     def reject(message: str) -> tuple[str, dict[str, object]]:
         return _reject(message, {"tool": "bash", "act": act, "command": command, "reason": why})
 
+    if extra:
+        return reject(_unexpected_args("bash", extra, ("command", "type", "reason")))
     if not command:
         return reject("`command` is empty.")
     if not act:
@@ -461,17 +464,36 @@ def t_bash(command: str = "", type: str = "", reason: str = "") -> tuple[str, di
     return result, meta
 
 
-def _journaled(fn, act: str, describe):
+def _unexpected_args(tool: str, extra, allowed) -> str:
+    names = ", ".join(f"`{k}`" for k in sorted(extra))
+    return (f"unexpected argument(s) {names} for `{tool}`. Valid arguments: "
+            + ", ".join(f"`{a}`" for a in allowed) + ".")
+
+
+def _journaled(fn, act: str, describe, tool: str, exposed: tuple[str, ...]):
     """Wrap a file tool: `type` is derivable from the tool, `reason` is not,
-    so the reason stays mandatory and the journal stays gap-free."""
+    so the reason stays mandatory and the journal stays gap-free. Arguments
+    the tool does not take, or required ones that are missing, become a
+    journaled rejection instead of an error raised inside agentknit."""
+    params = inspect.signature(fn).parameters
+    required = [n for n, p in params.items() if p.default is inspect.Parameter.empty]
+
     def wrapper(reason: str = "", **kwargs):
         why = (reason or "").strip()
+        described = describe(kwargs)
+        call = {"tool": tool, "act": act, "command": described, "reason": why}
+        extra = {k: v for k, v in kwargs.items() if k not in params}
+        if extra:
+            return _reject(_unexpected_args(tool, extra, ("reason", *exposed)), call)
+        missing = [n for n in required if n not in kwargs]
+        if missing:
+            return _reject(f"missing argument(s) {', '.join(f'`{m}`' for m in missing)} "
+                           f"for `{tool}`.", call)
         if len(why) < MIN_REASON_CHARS:
-            described = describe(kwargs)
             return _reject(
                 f"`reason` is mandatory and must be at least {MIN_REASON_CHARS} "
                 f"characters (got {len(why)}). Say what this file access is for.",
-                {"tool": described.split()[0], "act": act, "command": described, "reason": why},
+                call,
             )
         (result, meta), fx = _observed(lambda: fn(**kwargs))
         r = str(meta.get("result", result))
@@ -491,9 +513,12 @@ def _journaled(fn, act: str, describe):
     return wrapper
 
 
-t_read_j = _journaled(t_read, "collect-info", lambda kw: f"read_file {kw.get('path')}")
-t_write_j = _journaled(t_write, "change-state", lambda kw: f"write_file {kw.get('path')}")
-t_update_j = _journaled(t_update, "change-state", lambda kw: f"str_replace_edit {kw.get('path')}")
+t_read_j = _journaled(t_read, "collect-info", lambda kw: f"read_file {kw.get('path')}",
+                      "read_file", ("path",))
+t_write_j = _journaled(t_write, "change-state", lambda kw: f"write_file {kw.get('path')}",
+                       "write_file", ("path", "content"))
+t_update_j = _journaled(t_update, "change-state", lambda kw: f"str_replace_edit {kw.get('path')}",
+                        "str_replace_edit", ("path", "old", "new"))
 
 
 # ── tools ────────────────────────────────────────────────────────────────────
