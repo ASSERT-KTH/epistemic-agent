@@ -339,6 +339,8 @@ def _render_report() -> None:
         ok = e.get("ok")
         mark = {True: "ok", False: "FAILED", None: ""}.get(ok, "")
         head = f"### {e['seq']}. `{act}`" + (f" — {mark}" if mark else "")
+        if consistency.contradicted(e.get("violations") or []):
+            head += " — CONTRADICTED by effects"
         lines.append(head)
         lines.append("")
         reason = str(e.get("reason") or "_(untyped tool — reason not required)_")
@@ -363,6 +365,15 @@ def _render_report() -> None:
         lines += ["## Dead ends", ""]
         for e in reverts:
             lines.append(f"- (call {e['seq']}) {e.get('reason')}")
+        lines.append("")
+
+    # Declared type checked against observed effects (F2).
+    flagged = [(e, f) for e in entries for f in e.get("violations") or []]
+    if flagged:
+        lines += ["## Consistency", ""]
+        for e, f in flagged:
+            lines.append(f"- (call {e['seq']}) **{f['severity']}** {f['rule']} "
+                         f"{f['name']}: {f['detail']}")
         lines.append("")
 
     # Rejected calls never ran; listed apart so the narrative stays the story
