@@ -237,3 +237,48 @@ def check_entry(entry: dict, history: list[dict], protect: tuple[str, ...] = ())
 
 def contradicted(findings: list[dict[str, str]]) -> bool:
     return any(f["severity"] == "violation" for f in findings)
+
+
+# ── offline re-check ─────────────────────────────────────────────────────────
+def check_journal(entries: list[dict], protect: tuple[str, ...] = ()) -> list[dict]:
+    """Recompute findings for every executed entry of a stored journal, in
+    order, exactly as the harness does online."""
+    out = []
+    for i, e in enumerate(entries):
+        if e.get("rejected") or e.get("effects") is None:
+            continue
+        out.append({"seq": e.get("seq"), "tool": tool_of(e), "act": e.get("act"),
+                    "violations": check_entry(e, entries[:i], protect)})
+    return out
+
+
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+    import json
+    import sys
+    from pathlib import Path
+
+    p = argparse.ArgumentParser(
+        description="Re-check a stored journal: one JSON line per executed call, summary on stderr.")
+    p.add_argument("journal", help="path to journal.jsonl")
+    p.add_argument("--protect", metavar="GLOB", action="append",
+                   help="protected glob (repeatable); default: the run's own, from run.json next "
+                        "to the journal")
+    args = p.parse_args(argv)
+    path = Path(args.journal)
+    protect = args.protect
+    if protect is None:
+        run = path.parent / "run.json"
+        protect = json.loads(run.read_text()).get("harness", {}).get("protect", []) if run.exists() else []
+    entries = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    results = check_journal(entries, tuple(protect))
+    for r in results:
+        print(json.dumps(r, ensure_ascii=False))
+    counts = {sev: sum(1 for r in results for f in r["violations"] if f["severity"] == sev)
+              for sev in ("violation", "warning", "protected")}
+    contra = sum(1 for r in results if contradicted(r["violations"]))
+    print(f"{len(results)} executed calls, {contra} contradicted; findings: {counts}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
