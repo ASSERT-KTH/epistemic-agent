@@ -114,12 +114,31 @@ uv run python epistemic_agent.py --workspace /tmp/ea-demo/ws --out-dir /tmp/ea-d
 | File in `--out-dir` | Content |
 |---|---|
 | `RATIONALE.md` | Human-readable report: act-type distribution, numbered narrative (reason, command, outcome, effects), dead ends, rejected calls. |
-| `journal.jsonl` | One entry per tool call: seq, time, declared type and reason, command, outcome, observed effects; rejected calls are marked `rejected`. |
+| `journal.jsonl` | One entry per tool call: seq, time, tool, declared type and reason, command, outcome, observed effects, consistency findings; rejected calls are marked `rejected`. |
 | `effects/NNNN.diff` | Unified diff of the files call NNNN changed. |
 | `out/NNNN.txt` | Full output of call NNNN. |
 | `run.json` | Run metadata: model, endpoint, task, harness settings, system-prompt hash, harness commit, versions, token totals, status. |
 | `usage.jsonl` | Token usage per model call. |
 | `agentknit/` | The agent framework's own transcript. |
+
+## Consistency checking
+
+Every executed call's declared type is checked against what the call actually did, and the findings are stored in
+the journal (`violations`) and in a Consistency section of `RATIONALE.md`:
+
+- **violation**: the effects prove the declared type false, e.g. a `verify` call that modified a file (the report
+  marks it `CONTRADICTED by effects`);
+- **warning**: suspicious but not proven, e.g. a `change-state` that changed nothing, or a read-only type whose
+  command looks mutating;
+- **protected**: a change to a path matching `--protect GLOB` (e.g. `--protect 'test_*.py'`), whatever the type.
+
+`--policy monitor` (default) records findings without telling the agent; `--policy enforce` also rejects read-only
+calls whose command looks mutating; `--policy off` disables checking. To re-check a stored run, for example after a
+rule changes:
+
+```bash
+uv run python consistency.py /tmp/ea-demo/run/journal.jsonl
+```
 
 Sessions are hermetic by default: the model sees only the harness's system prompt, not your
 `~/.claude/CLAUDE.md`, a local `AGENTS.md`, or details about your machine. `--no-hermetic` turns this off.

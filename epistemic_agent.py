@@ -39,8 +39,8 @@ The file tools take `reason` but not `type`: their act type is a property of
 the tool, not of the situation, so asking for it would only invite lying.
 
 Outputs (in `--out-dir DIR`; without it, `./.epistemic/` plus `./RATIONALE.md`):
-  journal.jsonl  one entry per tool call: seq, time, type, command, reason,
-                 outcome, effects; rejected calls (bad type, short reason,
+  journal.jsonl  one entry per tool call: seq, time, tool, type, command,
+                 reason, outcome, effects, violations; rejected calls (bad type, short reason,
                  unexpected or missing arguments) carry `rejected` and
                  `rejection` and have no effects
   out/NNNN.txt   full output of executed call NNNN
@@ -59,6 +59,17 @@ entry records what it actually did, whatever its declared type: files
 created, modified or deleted, file-tool writes outside the workspace, and
 whether the git HEAD moved. Calls run one at a time so effects are
 attributable.
+
+Consistency (consistency.py): each executed call's declared type is checked
+against its effects and recorded in the journal as `violations`. A
+read-only type that changed files, a revert of something never changed, or
+a cleanup of files the agent did not create is a violation (the report marks
+the call CONTRADICTED); no-op changes and mutating-looking commands under
+read-only types are warnings; changes to `--protect` globs are flagged
+separately. `--policy monitor` (default) records findings and tells the
+agent nothing; `enforce` also rejects read-only calls whose command looks
+mutating; `off` disables checking. Stored journals can be re-checked with
+`python consistency.py DIR/journal.jsonl`.
 
 Sessions are hermetic by default: the system prompt is only this harness's
 text, with no ~/.claude/CLAUDE.md, ./AGENTS.md, environment block or
