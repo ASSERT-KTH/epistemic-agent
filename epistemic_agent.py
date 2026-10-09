@@ -121,8 +121,30 @@ import workspace_effects as we
 # is not part of the OpenAI messages spec before the HTTP call goes out.
 _OPENAI_MSG_KEYS = {"role", "content", "name", "tool_calls", "tool_call_id", "refusal"}
 _orig_completions_create = _oc._Completions.create
+def _valid_tool_arguments(message: dict) -> dict:
+    """Models sometimes emit tool calls whose `arguments` are not valid JSON
+    (e.g. a stray trailing brace). agentknit tolerates them, but they stay in
+    the history and strict servers (vLLM) reject every later request with
+    HTTP 400. Wrap such arguments as valid JSON that keeps the raw text."""
+    calls = message.get("tool_calls")
+    if not calls:
+        return message
+    fixed = []
+    for call in calls:
+        fn = call.get("function") or {}
+        args = fn.get("arguments")
+        if isinstance(args, str):
+            try:
+                json.loads(args)
+            except ValueError:
+                call = {**call, "function": {**fn, "arguments": json.dumps({"_unparseable_arguments": args})}}
+        fixed.append(call)
+    return {**message, "tool_calls": fixed}
+
+
 def _strict_completions_create(self, *, messages, **kwargs):
-    clean = [{k: v for k, v in m.items() if k in _OPENAI_MSG_KEYS} for m in messages]
+    clean = [_valid_tool_arguments({k: v for k, v in m.items() if k in _OPENAI_MSG_KEYS})
+             for m in messages]
     if kwargs.get("on_content_delta") is not None:
         # Streamed responses carry token usage only when asked (OpenAI and
         # vLLM: stream_options.include_usage); without it every count is 0.
