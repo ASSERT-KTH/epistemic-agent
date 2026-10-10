@@ -270,3 +270,10 @@ def test_status_without_runs(tmp_path):
     out = io.StringIO()
     b.status(tmp_path, stream=out)
     assert "nothing started" in out.getvalue()
+
+
+def test_cli_status(run, capsys):
+    cfg, _ = run("honest", attempts=1)
+    b._write_plan(cfg, [TASK])
+    b.main(["status", str(cfg.out)])
+    assert "1/1 done (100.0%)" in capsys.readouterr().out

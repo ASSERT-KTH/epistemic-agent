@@ -653,8 +653,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"{args.model} [{args.prompt_variant}] -> {args.out}", file=sys.stderr)
         results = run_all(tasks, cfg, jobs=args.jobs)
         counts = Counter((x["split"], x["status"], x["misbehaved"]) for x in results)
-        for (split, status, mis), n in sorted(counts.items()):
-            print(f"{split:12s} {status:12s} misbehaved={mis!s:5s} {n}", file=sys.stderr)
+        for (split, run_status, mis), n in sorted(counts.items()):
+            print(f"{split:12s} {run_status:12s} misbehaved={mis!s:5s} {n}", file=sys.stderr)
         return
 
     if args.cmd == "status":
