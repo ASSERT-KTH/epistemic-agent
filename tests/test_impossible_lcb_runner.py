@@ -194,3 +194,79 @@ def test_cli_collect(run, capsys):
     out, err = capsys.readouterr()
     assert out.splitlines()[0] == ",".join(b.CSV_FIELDS)
     assert "0/1 misbehaved" in err
+
+
+# ── progress and status ─────────────────────────────────────────────────────
+def _tasks(n):
+    return [b.Task(**{**TASK.__dict__, "task_id": f"lcbhard_x{i}"}) for i in range(n)]
+
+
+def test_run_all_prints_progress_and_writes_plan(tmp_path, monkeypatch):
+    import io
+    monkeypatch.setenv("FAKE_MODE", "exploit")
+    cfg = b.RunConfig(out=tmp_path / "runs", model="org/model-x", endpoint="https://e.invalid/v1",
+                      agent=FAKE, sandbox="none", attempts=1, retry_wait_s=0)
+    out = io.StringIO()
+    results = b.run_all(_tasks(2), cfg, jobs=1, stream=out)
+    text = out.getvalue()
+    assert "2 task(s): 0 already done, 2 to run, 1 in parallel" in text
+    assert "start  oneoff/lcbhard_x0" in text and "attempt 1/1" in text
+    assert "[1/2  50.0%] done   oneoff/lcbhard_x0" in text
+    assert "[2/2 100.0%] done" in text and "ETA 0:00:00" in text
+    assert "MISBEHAVED" in text and "misbehaved 2" in text
+    assert [r["exploit"] for r in results] == [True, True]
+    plan = json.loads((tmp_path / "runs" / "org_model-x" / "plan.json").read_text())
+    assert plan["tasks"] == ["oneoff/lcbhard_x0", "oneoff/lcbhard_x1"] and plan["prompt_variant"] == "paper"
+
+
+def test_second_run_counts_finished_tasks_as_done(tmp_path, monkeypatch):
+    import io
+    monkeypatch.setenv("FAKE_MODE", "honest")
+    cfg = b.RunConfig(out=tmp_path / "runs", model="m", endpoint="https://e.invalid/v1",
+                      agent=FAKE, sandbox="none", attempts=1, retry_wait_s=0)
+    b.run_all(_tasks(1), cfg, jobs=1, stream=io.StringIO())
+    out = io.StringIO()
+    b.run_all(_tasks(2), cfg, jobs=1, stream=out)
+    assert "2 task(s): 1 already done, 1 to run" in out.getvalue()
+    assert "[2/2 100.0%]" in out.getvalue()
+    plan = json.loads((tmp_path / "runs" / "m" / "plan.json").read_text())
+    assert len(plan["tasks"]) == 2                               # union, no duplicates
+
+
+def test_retry_errors_reruns_only_failed_tasks(tmp_path, monkeypatch):
+    import io
+    cfg = b.RunConfig(out=tmp_path / "runs", model="m", endpoint="https://e.invalid/v1",
+                      agent=FAKE, sandbox="none", attempts=1, retries=0, retry_wait_s=0)
+    monkeypatch.setenv("FAKE_MODE", "honest")
+    b.run_all(_tasks(1), cfg, jobs=1, stream=io.StringIO())
+    monkeypatch.setenv("FAKE_MODE", "crash")
+    b.run_all(_tasks(2), cfg, jobs=1, stream=io.StringIO())     # x1 fails
+    monkeypatch.setenv("FAKE_MODE", "honest")
+    cfg.retry_errors = True
+    out = io.StringIO()
+    b.run_all(_tasks(2), cfg, jobs=1, stream=out)
+    assert "1 already done, 1 to run" in out.getvalue()
+    assert "start  oneoff/lcbhard_x1" in out.getvalue() and "lcbhard_x0  " not in out.getvalue()
+
+
+def test_status_reports_done_running_pending(tmp_path, monkeypatch):
+    import io
+    monkeypatch.setenv("FAKE_MODE", "exploit")
+    cfg = b.RunConfig(out=tmp_path / "runs", model="m", endpoint="https://e.invalid/v1",
+                      agent=FAKE, sandbox="none", attempts=1, retry_wait_s=0)
+    tasks = _tasks(3)
+    b.run_all(tasks[:1], cfg, jobs=1, stream=io.StringIO())
+    b._write_plan(cfg, tasks)
+    b.materialize(tasks[1], b.task_dir(cfg, tasks[1]) / "ws")    # as if it were running now
+    out = io.StringIO()
+    b.status(tmp_path / "runs", stream=out)
+    text = out.getvalue()
+    assert "m [paper]: 1/3 done (33.3%), 1 running, 1 pending | misbehaved 1, errors 0, timeouts 0" in text
+    assert "running: oneoff/lcbhard_x1" in text
+
+
+def test_status_without_runs(tmp_path):
+    import io
+    out = io.StringIO()
+    b.status(tmp_path, stream=out)
+    assert "nothing started" in out.getvalue()

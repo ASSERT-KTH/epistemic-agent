@@ -319,9 +319,10 @@ def _agent_argv(cfg: RunConfig, task: Task, ws: Path, run: Path, message: str,
     return argv + [cfg.model, message]
 
 
-def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
+def run_one(task: Task, cfg: RunConfig, note=lambda msg: None) -> dict[str, object]:
     """Run, score and record one task. Skips tasks that already have a
-    result.json; restarts tasks that were interrupted half-way."""
+    result.json; restarts tasks that were interrupted half-way. `note`
+    receives short progress messages (attempts, retries)."""
     import shutil
     import time
 
@@ -353,6 +354,8 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
             if retry:
                 retries_used += 1
                 time.sleep(min(cfg.retry_wait_s, max(0.0, remaining - 1)))
+            note(f"attempt {attempt}/{cfg.attempts}"
+                 + (f", retry {retry}/{cfg.retries} after an agent error" if retry else ""))
             log = run / (f"agent.attempt{attempt}.log" if not retry else f"agent.attempt{attempt}.retry{retry}.log")
             proc = None
             try:
@@ -385,6 +388,7 @@ def run_one(task: Task, cfg: RunConfig) -> dict[str, object]:
         check = _run_tests(ws, test_py(task), scratch, f"after_attempt{attempt}")
         if check.passed or attempt == cfg.attempts:
             break
+        note(f"attempt {attempt}: tests fail, sending the paper's feedback")
         message = feedback_message(check.explanation(), cfg.prompt_variant)
 
     verdict = score(task, ws, scratch / "final")
@@ -429,11 +433,146 @@ def select_tasks(tasks: list[Task], ids: list[str] | None, limit: int | None, se
     return [t for t in tasks if t.task_id in keep]
 
 
-def run_all(tasks: list[Task], cfg: RunConfig, jobs: int = 2) -> list[dict[str, object]]:
+def _fmt_duration(seconds: float) -> str:
+    seconds = int(seconds)
+    h, rem = divmod(seconds, 3600)
+    return f"{h}:{rem // 60:02d}:{rem % 60:02d}"
+
+
+def _write_plan(cfg: RunConfig, tasks: list[Task]) -> None:
+    """Record which tasks this out directory is meant to contain, so `status`
+    can report progress from another terminal. Repeated runs add to it."""
+    import time
+
+    path = cfg.out / model_slug(cfg.model) / "plan.json"
+    plan = json.loads(path.read_text()) if path.exists() else {"tasks": []}
+    known = set(plan["tasks"])
+    plan.update({"model": cfg.model, "endpoint": cfg.endpoint, "prompt_variant": cfg.prompt_variant,
+                 "attempts": cfg.attempts, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    plan["tasks"] = plan["tasks"] + [f"{t.split}/{t.task_id}" for t in tasks
+                                     if f"{t.split}/{t.task_id}" not in known]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(plan, indent=2) + "\n")
+
+
+class Progress:
+    """Thread-safe progress lines: start and end of every task with
+    done/total, percentage, elapsed time, ETA and running counts."""
+
+    def __init__(self, total: int, already_done: int, jobs: int, stream=None):
+        import threading
+        import time
+        self.total, self.done, self.jobs = total, already_done, jobs
+        self.finished_here = 0
+        self.counts = {"misbehaved": 0, "agent_error": 0, "timeout": 0}
+        self.running = 0
+        self.started = time.time()
+        self.lock = threading.Lock()
+        self.stream = stream or sys.stderr
+
+    def _emit(self, msg: str) -> None:
+        import time
+        print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=self.stream, flush=True)
+
+    def header(self, skipped: int) -> None:
+        self._emit(f"{self.total} task(s): {skipped} already done, {self.total - skipped} to run, "
+                   f"{self.jobs} in parallel")
+
+    def start(self, label: str) -> None:
+        with self.lock:
+            self.running += 1
+            self._emit(f"start  {label}  (running: {self.running})")
+
+    def note(self, label: str, msg: str) -> None:
+        with self.lock:
+            self._emit(f"       {label}: {msg}")
+
+    def finish(self, label: str, r: dict) -> None:
+        import time
+        with self.lock:
+            self.running -= 1
+            self.done += 1
+            self.finished_here += 1
+            if r.get("misbehaved"):
+                self.counts["misbehaved"] += 1
+            if r.get("status") in ("agent_error", "timeout"):
+                self.counts[r["status"]] += 1
+            elapsed = time.time() - self.started
+            left = self.total - self.done
+            eta = _fmt_duration(elapsed / self.finished_here * left) if left else "0:00:00"
+            pct = 100 * self.done / self.total if self.total else 100.0
+            verdict = "MISBEHAVED" if r.get("misbehaved") else "ok"
+            self._emit(f"[{self.done:>{len(str(self.total))}}/{self.total} {pct:5.1f}%] done   {label}  "
+                       f"{r.get('status')}  {verdict}  attempts {r.get('attempts_used')}  "
+                       f"{_fmt_duration(r.get('wall_clock_s') or 0)} | elapsed {_fmt_duration(elapsed)}  "
+                       f"ETA {eta} | misbehaved {self.counts['misbehaved']}  "
+                       f"errors {self.counts['agent_error']}  timeouts {self.counts['timeout']}")
+
+
+def run_all(tasks: list[Task], cfg: RunConfig, jobs: int = 2, stream=None) -> list[dict[str, object]]:
     from concurrent.futures import ThreadPoolExecutor
 
+    _write_plan(cfg, tasks)
+    def needs_run(t: Task) -> bool:
+        result = task_dir(cfg, t) / "result.json"
+        if not result.exists():
+            return True
+        return cfg.retry_errors and json.loads(result.read_text()).get("status") != "completed"
+
+    pending = [t for t in tasks if needs_run(t)]
+    skipped = len(tasks) - len(pending)
+    progress = Progress(len(tasks), skipped, jobs, stream)
+    progress.header(skipped)
+
+    def work(task: Task) -> dict[str, object]:
+        label = f"{task.split}/{task.task_id}"
+        progress.start(label)
+        r = run_one(task, cfg, note=lambda msg: progress.note(label, msg))
+        progress.finish(label, r)
+        return r
+
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        return list(pool.map(lambda t: run_one(t, cfg), tasks))
+        list(pool.map(work, pending))
+    return [json.loads((task_dir(cfg, t) / "result.json").read_text()) for t in tasks]
+
+
+def status(out: Path, stream=None) -> None:
+    """Progress of the runs under `out`, readable while they are still going."""
+    import time
+    stream = stream or sys.stdout
+    plans = sorted(out.glob("*/plan.json"))
+    if not plans:
+        print(f"no plan.json under {out}: nothing started there yet", file=stream)
+        return
+    for plan_file in plans:
+        plan = json.loads(plan_file.read_text())
+        mdir = plan_file.parent
+        done, running, pending = 0, [], 0
+        counts = {"misbehaved": 0, "agent_error": 0, "timeout": 0}
+        for key in plan["tasks"]:
+            tdir = mdir / key
+            result = tdir / "result.json"
+            if result.exists():
+                done += 1
+                r = json.loads(result.read_text())
+                counts["misbehaved"] += bool(r.get("misbehaved"))
+                if r.get("status") in counts:
+                    counts[r["status"]] += 1
+            elif tdir.exists():
+                logs = list((tdir / "run").glob("agent.attempt*.log"))
+                journal = tdir / "run" / "journal.jsonl"
+                calls = len(journal.read_text().splitlines()) if journal.exists() else 0
+                age = time.time() - (tdir / "ws").stat().st_mtime if (tdir / "ws").exists() else 0
+                running.append(f"{key} ({_fmt_duration(age)}, {len(logs)} agent run(s), {calls} calls)")
+            else:
+                pending += 1
+        total = len(plan["tasks"])
+        pct = 100 * done / total if total else 100.0
+        print(f"{plan['model']} [{plan.get('prompt_variant')}]: {done}/{total} done ({pct:.1f}%), "
+              f"{len(running)} running, {pending} pending | misbehaved {counts['misbehaved']}, "
+              f"errors {counts['agent_error']}, timeouts {counts['timeout']}", file=stream)
+        for line in running:
+            print(f"    running: {line}", file=stream)
 
 
 # ── collect ──────────────────────────────────────────────────────────────────
@@ -489,6 +628,9 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--retry-errors", action="store_true",
                    help="re-run tasks whose previous result was an agent error or a timeout")
 
+    st = sub.add_parser("status", help="progress of a run directory (works while it is running)")
+    st.add_argument("out", type=Path)
+
     c = sub.add_parser("collect", help="one CSV row per finished task, summary on stderr")
     c.add_argument("out", type=Path)
     args = p.parse_args(argv)
@@ -508,11 +650,15 @@ def main(argv: list[str] | None = None) -> None:
                         retries=args.retries, retry_errors=args.retry_errors)
         ids = args.tasks.split(",") if args.tasks else None
         tasks = [t for split in args.split for t in select_tasks(load_tasks(split), ids, args.limit, args.seed)]
-        print(f"{len(tasks)} task(s) -> {args.out}", file=sys.stderr)
+        print(f"{args.model} [{args.prompt_variant}] -> {args.out}", file=sys.stderr)
         results = run_all(tasks, cfg, jobs=args.jobs)
         counts = Counter((x["split"], x["status"], x["misbehaved"]) for x in results)
         for (split, status, mis), n in sorted(counts.items()):
             print(f"{split:12s} {status:12s} misbehaved={mis!s:5s} {n}", file=sys.stderr)
+        return
+
+    if args.cmd == "status":
+        status(args.out)
         return
 
     rows = collect(args.out)
