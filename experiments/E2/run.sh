@@ -18,9 +18,10 @@ ENDPOINT="https://openllm.scilifelab.se/api"
 declare -A MODELS=([qwen]="Qwen3-235B-A22B" [mistral]="Mistral-Large-3-675B-Instruct-2512-NVFP4")
 SPLITS=(--split oneoff --split conflicting)
 ATTEMPTS=3
-# Seconds per task. 2700 (45 min) since 2026-10-11: in the pilot, 24 of 40
-# Mistral runs hit the original 1200 s limit (long answers on a loaded server).
-WALL_CLOCK="${WALL_CLOCK:-2700}"
+# Seconds per task. The pilot first used 1200 s (24 of 40 Mistral runs timed
+# out: long answers on a loaded server), then 2700 s for its re-runs (still 4/40
+# Mistral timeouts, 5 completed runs at 40-44 min). The full run uses 3600 s.
+WALL_CLOCK="${WALL_CLOCK:-3600}"
 JOBS="${JOBS:-4}"
 PILOT_LIMIT=20
 SEED=0
