@@ -23,6 +23,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -280,6 +281,52 @@ def journal_pointers(journal: Path) -> dict[str, object]:
 AGENT = [sys.executable, str(ROOT / "epistemic_agent.py")]       # same interpreter (the uv venv)
 
 
+class Stopped(Exception):
+    """The runner was interrupted: the task stays unfinished (no result.json)
+    and is run again from scratch next time."""
+
+
+# Agents run in their own session, so Ctrl+C in the runner's terminal does not
+# reach them; the runner stops them itself (stop_agents), and tasks interrupted
+# that way raise Stopped instead of being recorded.
+_STOPPING = threading.Event()
+_LIVE: set = set()
+_LIVE_LOCK = threading.Lock()
+
+
+def _run_agent(argv: list[str], log, timeout: float) -> subprocess.CompletedProcess:
+    """subprocess.run for an agent, in its own session, tracked for stop_agents."""
+    import signal
+    with subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, start_new_session=True) as proc:
+        with _LIVE_LOCK:
+            _LIVE.add(proc)
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+            raise
+        finally:
+            with _LIVE_LOCK:
+                _LIVE.discard(proc)
+    if _STOPPING.is_set():
+        raise Stopped()
+    return subprocess.CompletedProcess(argv, proc.returncode)
+
+
+def stop_agents() -> None:
+    """Terminate every running agent (and its children) and mark the run as stopping."""
+    import signal
+    _STOPPING.set()
+    with _LIVE_LOCK:
+        procs = list(_LIVE)
+    for proc in procs:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+
 @dataclass
 class RunConfig:
     out: Path
@@ -361,11 +408,9 @@ def run_one(task: Task, cfg: RunConfig, note=lambda msg: None) -> dict[str, obje
             try:
                 with log.open("w") as fh:
                     # Own session: signals aimed at the runner's terminal (e.g. a
-                    # stray SIGINT) do not reach the agent; subprocess.run still
-                    # kills it if the runner itself is interrupted.
-                    proc = subprocess.run(_agent_argv(cfg, task, ws, run, message, session),
-                                          stdout=fh, stderr=subprocess.STDOUT, timeout=remaining,
-                                          start_new_session=True)
+                    # stray SIGINT) do not reach the agent; stop_agents() ends it
+                    # if the runner itself is interrupted.
+                    proc = _run_agent(_agent_argv(cfg, task, ws, run, message, session), fh, remaining)
             except subprocess.TimeoutExpired:
                 status = "timeout"            # usage so far is still collected below
             meta_file = run / "run.json"
@@ -531,8 +576,29 @@ def run_all(tasks: list[Task], cfg: RunConfig, jobs: int = 2, stream=None) -> li
         progress.finish(label, r)
         return r
 
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(work, pending))
+    def guarded(task: Task):
+        try:
+            return work(task)
+        except Stopped:
+            return None
+
+    _STOPPING.clear()
+    pool = ThreadPoolExecutor(max_workers=jobs)
+    try:
+        from concurrent.futures import FIRST_EXCEPTION, wait
+        futures = [pool.submit(guarded, t) for t in pending]
+        not_done = set(futures)
+        while not_done:                     # short waits: Ctrl+C is handled within a second
+            done, not_done = wait(not_done, timeout=1, return_when=FIRST_EXCEPTION)
+            for f in done:
+                f.result()
+    except KeyboardInterrupt:
+        progress._emit("interrupted: stopping running agents; unfinished tasks will run again next time")
+        stop_agents()
+        pool.shutdown(wait=True, cancel_futures=True)
+        _STOPPING.clear()                   # agents are gone; later calls start fresh
+        raise
+    pool.shutdown(wait=True)
     return [json.loads((task_dir(cfg, t) / "result.json").read_text()) for t in tasks]
 
 

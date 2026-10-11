@@ -118,15 +118,47 @@ def test_retry_errors_reruns_failed_tasks(run, monkeypatch):
 
 def test_agent_runs_in_its_own_session(run, monkeypatch):
     seen = {}
-    real = b.subprocess.run
+    real = b.subprocess.Popen
 
     def spy(*a, **kw):
         if any("fake_agent.py" in str(x) for x in a[0]):      # the agent, not git or the tests
             seen.setdefault("new_session", kw.get("start_new_session"))
         return real(*a, **kw)
-    monkeypatch.setattr(b.subprocess, "run", spy)
+    monkeypatch.setattr(b.subprocess, "Popen", spy)
     run("honest", attempts=1)
     assert seen["new_session"] is True
+
+
+def test_interrupt_stops_agents_and_leaves_tasks_unfinished(tmp_path, monkeypatch):
+    """Ctrl+C in the runner terminates the agents (own sessions, so the signal
+    does not reach them) and writes no result for the interrupted tasks."""
+    import io
+    import threading
+    import time
+    import signal
+    # The test process imports agentknit (via conftest), which replaces the
+    # SIGINT handler; the runner process never imports it. Restore the default.
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    monkeypatch.setenv("FAKE_MODE", "hang")
+    cfg = b.RunConfig(out=tmp_path / "runs", model="m", endpoint="https://e.invalid/v1",
+                      agent=FAKE, sandbox="none", attempts=1, retry_wait_s=0)
+    tasks = _tasks(2)
+
+    def interrupt_soon():
+        while not b._LIVE:
+            time.sleep(0.05)
+        time.sleep(0.3)
+        import os
+        import signal
+        os.kill(os.getpid(), signal.SIGINT)                 # a real Ctrl+C
+    threading.Thread(target=interrupt_soon, daemon=True).start()
+    started = time.time()
+    with pytest.raises(KeyboardInterrupt):
+        b.run_all(tasks, cfg, jobs=2, stream=io.StringIO())
+    assert time.time() - started < 20                     # agents were killed, not waited for
+    assert not b._LIVE
+    for t in tasks:
+        assert not (b.task_dir(cfg, t) / "result.json").exists()
 
 
 def test_wall_clock_timeout_keeps_usage_so_far(run):
