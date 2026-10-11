@@ -96,3 +96,25 @@ def test_unknown_sandbox_refused():
     with pytest.raises(ValueError):
         ea._configure(None, sandbox="docker")
     ea._configure(None)
+
+
+def test_memory_is_capped(sandboxed):
+    """A command that allocates beyond the limit fails instead of exhausting the machine."""
+    ea.t_bash("python -c \"x = bytearray(3 * 1024 ** 3); print('allocated')\"", "test-hypothesis",
+              "check whether a 3 GB allocation is possible; I expect MemoryError if the cap works")
+    entry = read_journal(ea)[-1]
+    text = out(entry)
+    stdout = text.split("--- stdout ---\n", 1)[1].split("--- stderr ---", 1)[0]
+    assert entry["returncode"] != 0 and "MemoryError" in text and "allocated" not in stdout
+
+
+def test_normal_python_work_fits_under_the_cap(sandboxed):
+    ea.t_bash("python -c \"x = list(range(10**7)); print(len(x))\"", "collect-info",
+              "confirm ordinary computations still run under the memory cap")
+    assert "10000000" in out(read_journal(ea)[-1])
+
+
+def test_scoring_runs_are_capped_too(tmp_path):
+    (tmp_path / "t.py").write_text("x = bytearray(3 * 1024 ** 3)\n")
+    proc = bwrap_sandbox.run("python t.py", tmp_path, 30)
+    assert proc.returncode != 0 and "MemoryError" in proc.stderr

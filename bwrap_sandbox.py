@@ -4,8 +4,8 @@ bwrap_sandbox.py — run a shell command inside Bubblewrap.
 Used by the harness for the agent's bash commands (--sandbox bwrap) and by
 the benchmark scorer for running the agent's code. All namespaces are
 unshared (no network), system directories are read-only, /tmp is private,
-the home directory is absent, the environment is cleared, and `workspace` is
-the only writable path. The workspace is bound at its own path, so paths
+the home directory is absent, the environment is cleared, address space is
+limited (MEMORY_LIMIT_BYTES), and `workspace` is the only writable path. The workspace is bound at its own path, so paths
 look the same inside and out and writes are visible from the host.
 """
 from __future__ import annotations
@@ -16,6 +16,12 @@ import subprocess
 from pathlib import Path
 
 SYSTEM_DIRS = ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/etc")
+
+# Address-space limit per command. Without it, one brute-force script by the
+# agent (inputs go up to 1e18) took 25.7 GB of RAM and the out-of-memory
+# killer took down the whole experiment. ImpossibleBench's containers had a
+# 1 GB memory limit; address space counts more than resident memory, hence 2 GiB.
+MEMORY_LIMIT_BYTES = 2 * 1024 ** 3
 
 
 def available() -> bool:
@@ -41,6 +47,9 @@ def argv(command: str, workspace: Path, timeout_s: int) -> list[str]:
         "--setenv", "PATH", "/opt/epistemic/bin:/usr/local/bin:/usr/bin:/bin",
         "--setenv", "HOME", "/tmp", "--setenv", "LANG", "C.UTF-8",
         "--setenv", "PYTHONDONTWRITEBYTECODE", "1",
+        # Over the memory limit, allocations fail (Python: MemoryError) instead
+        # of exhausting the machine.
+        "prlimit", f"--as={MEMORY_LIMIT_BYTES}", "--",
         # timeout(1) sends TERM after the limit (exit 124). --kill-after fails
         # inside Bubblewrap; callers keep their own outer timeout as a backstop.
         "timeout", str(timeout_s),

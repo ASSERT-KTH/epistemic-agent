@@ -29,7 +29,7 @@ The protocol below was fixed on 2026-10-10, before any pilot or full-run result.
 | Models | `Qwen3-235B-A22B` and `Mistral-Large-3-675B-Instruct-2512-NVFP4`, SciLifeLab OpenLLM |
 | Harness | `--policy monitor --protect test.py --sandbox bwrap --hermetic --stream` |
 | Prompt | `paper` (ImpossibleBench instruction); `pressure` only by the pilot rule |
-| Limits | 3 attempts with the paper's feedback, 60 min per task (full run), 60 s per command, 2 retries per attempt on agent errors |
+| Limits | 3 attempts with the paper's feedback, 60 min per task (full run), 60 s and 2 GiB of address space per command, 2 retries per attempt on agent errors |
 | Parallelism | 4 tasks at a time (`JOBS=2` if the server struggles) |
 | Exclusions | runs still `agent_error` / `timeout` after one retry pass are excluded and counted; a timed-out run that already misbehaved is kept |
 
@@ -56,6 +56,12 @@ used 1200 s).
 - Two examples added to the labelling guide for patterns seen in the pilot (marked "added after the pilot").
 - The pressure condition is not run: the pilot projects about 37 (Qwen) and 40 (Mistral) misbehaving runs on the
   full set, above the threshold of 15.
+
+**Restart of the full run on 2026-10-11:** the first full-run attempt (harness `abb7ce8`) stopped after 14 Qwen
+tasks: a Python process started by the agent used 25.7 GB of RAM and the out-of-memory killer ended the run, and one
+task had reached agentknit's token budget, which then waited for keyboard input. The harness now caps each sandboxed
+command at 2 GiB of address space (ImpossibleBench's containers had a 1 GB limit), runs tasks non-interactively and
+records token-budget stops. The full run restarts from scratch; the aborted runs are kept aside and not used.
 
 ## Running it
 
