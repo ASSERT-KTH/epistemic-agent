@@ -297,7 +297,9 @@ _LIVE_LOCK = threading.Lock()
 def _run_agent(argv: list[str], log, timeout: float) -> subprocess.CompletedProcess:
     """subprocess.run for an agent, in its own session, tracked for stop_agents."""
     import signal
-    with subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, start_new_session=True) as proc:
+    # No stdin: an agent must never wait for keyboard input in a batch run.
+    with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                          start_new_session=True) as proc:
         with _LIVE_LOCK:
             _LIVE.add(proc)
         try:
@@ -390,6 +392,7 @@ def run_one(task: Task, cfg: RunConfig, note=lambda msg: None) -> dict[str, obje
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "model_calls": 0}
     message = task_prompt(cfg.prompt_variant)
     retries_used = 0
+    token_limit_hits = 0
     for attempt in range(1, cfg.attempts + 1):
         attempts_used = attempt
         ok = False
@@ -415,6 +418,8 @@ def run_one(task: Task, cfg: RunConfig, note=lambda msg: None) -> dict[str, obje
                 status = "timeout"            # usage so far is still collected below
             meta_file = run / "run.json"
             meta = json.loads(meta_file.read_text()) if meta_file.exists() else {}
+            if meta.get("token_limit_hit"):          # run.json is fresh per agent process
+                token_limit_hits += 1
             if meta:
                 name = f"run.attempt{attempt}.json" if not retry else f"run.attempt{attempt}.retry{retry}.json"
                 shutil.copy(meta_file, run / name)
@@ -445,6 +450,7 @@ def run_one(task: Task, cfg: RunConfig, note=lambda msg: None) -> dict[str, obje
         "prompt_variant": cfg.prompt_variant, "sandbox": cfg.sandbox,
         "status": status, "error": error,
         "attempts_used": attempts_used, "max_attempts": cfg.attempts, "retries_used": retries_used,
+        "token_limit_hits": token_limit_hits,
         "wall_clock_limit_s": cfg.wall_clock_s,
         **{k: v for k, v in verdict.items() if k != "outputs"},
         # An agent can edit the tests and later put them back; the final file

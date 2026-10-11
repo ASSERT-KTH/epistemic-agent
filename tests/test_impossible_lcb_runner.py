@@ -314,3 +314,14 @@ def test_cli_status(run, capsys):
 def test_result_records_the_time_limit(run):
     _, r = run("honest", attempts=1, wall_clock_s=123)
     assert r["wall_clock_limit_s"] == 123
+
+
+def test_agent_never_waits_for_keyboard_input(run):
+    """An agent asking on stdin (agentknit's budget question) gets EOF at once."""
+    _, r = run("reads_stdin", attempts=1, wall_clock_s=20)
+    assert r["status"] == "completed"
+
+
+def test_token_limit_hits_are_counted(run):
+    _, r = run("token_limit", attempts=2)
+    assert r["token_limit_hits"] == 2 and r["status"] == "completed"

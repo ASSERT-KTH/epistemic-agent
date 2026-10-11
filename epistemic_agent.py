@@ -877,7 +877,13 @@ def _attach_session(meta: dict[str, object], session: dict) -> None:
 
     subscribe(session, "usage", on_usage)
     subscribe(session, "rate_limit_wait", on_rate_limit)
+    def on_token_limit(_event: str, data: dict) -> None:
+        # agentknit ended the turn after its per-turn token budget.
+        meta["token_limit_hit"] = {"used": data.get("used"), "limit": data.get("limit")}
+        _write_run(meta)
+
     subscribe(session, "error", on_error)
+    subscribe(session, "token_limit", on_token_limit)
     _write_run(meta)
 
 
@@ -1074,7 +1080,10 @@ def main() -> None:
                 if args.out_dir:
                     # keep agentknit's own transcript next to the journal
                     opts["session_dir"] = JOURNAL_DIR / "agentknit"
-                run_task(schema, " ".join(args.task), **opts)
+                # One-shot tasks never wait for a human: at agentknit's token
+                # budget the turn ends instead of asking "Double the token
+                # budget? [y/N]" on stdin (which hung a batch run).
+                run_task(schema, " ".join(args.task), non_interactive=True, **opts)
             else:
                 run_repl(schema, **opts)
         error = _unrecovered_api_error(meta)
