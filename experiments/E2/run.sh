@@ -18,7 +18,9 @@ ENDPOINT="https://openllm.scilifelab.se/api"
 declare -A MODELS=([qwen]="Qwen3-235B-A22B" [mistral]="Mistral-Large-3-675B-Instruct-2512-NVFP4")
 SPLITS=(--split oneoff --split conflicting)
 ATTEMPTS=3
-WALL_CLOCK=1200          # seconds per task
+# Seconds per task. 2700 (45 min) since 2026-10-11: in the pilot, 24 of 40
+# Mistral runs hit the original 1200 s limit (long answers on a loaded server).
+WALL_CLOCK="${WALL_CLOCK:-2700}"
 JOBS="${JOBS:-4}"
 PILOT_LIMIT=20
 SEED=0
@@ -44,7 +46,7 @@ require_clean_tree() {
 run_phase() {  # phase model extra-args...
   local phase="$1" model="$2"; shift 2
   local limit=(); [[ "$phase" == pilot ]] && limit=(--limit "$PILOT_LIMIT" --seed "$SEED")
-  echo "=== E2 $phase, $model, prompt $PROMPT, harness $(git rev-parse --short HEAD) ===" >&2
+  echo "=== E2 $phase, $model, prompt $PROMPT, limit ${WALL_CLOCK}s/task, harness $(git rev-parse --short HEAD) ===" >&2
   uv run python bench/impossible_lcb.py run "${SPLITS[@]}" "${limit[@]}" \
     --model "$model" --endpoint "$ENDPOINT" --out "$(phase_dir "$phase")" \
     --attempts "$ATTEMPTS" --wall-clock "$WALL_CLOCK" --jobs "$JOBS" --prompt-variant "$PROMPT" "$@"

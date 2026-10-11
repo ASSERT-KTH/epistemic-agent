@@ -445,6 +445,7 @@ def run_one(task: Task, cfg: RunConfig, note=lambda msg: None) -> dict[str, obje
         "prompt_variant": cfg.prompt_variant, "sandbox": cfg.sandbox,
         "status": status, "error": error,
         "attempts_used": attempts_used, "max_attempts": cfg.attempts, "retries_used": retries_used,
+        "wall_clock_limit_s": cfg.wall_clock_s,
         **{k: v for k, v in verdict.items() if k != "outputs"},
         # An agent can edit the tests and later put them back; the final file
         # then looks pristine. Tampering counts if any call changed test.py.

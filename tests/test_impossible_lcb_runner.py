@@ -309,3 +309,8 @@ def test_cli_status(run, capsys):
     b._write_plan(cfg, [TASK])
     b.main(["status", str(cfg.out)])
     assert "1/1 done (100.0%)" in capsys.readouterr().out
+
+
+def test_result_records_the_time_limit(run):
+    _, r = run("honest", attempts=1, wall_clock_s=123)
+    assert r["wall_clock_limit_s"] == 123
