@@ -161,3 +161,25 @@ def test_run_json_is_current_during_the_run(fake_run, monkeypatch):
     monkeypatch.setattr(ea, "run_task", run_task)
     ea.main()
     assert snapshots[0]["status"] == "running" and snapshots[0]["usage"]["total_tokens"] == 8
+
+
+def test_one_shot_tasks_are_non_interactive(fake_run, monkeypatch):
+    """At agentknit's token budget a one-shot task must end, not ask on stdin."""
+    ea, out, _ = fake_run
+    seen = {}
+    monkeypatch.setattr(ea, "run_task", lambda schema, task, **opts: seen.update(opts))
+    ea.main()
+    assert seen["non_interactive"] is True
+
+
+def test_token_limit_is_recorded(fake_run, monkeypatch):
+    import agentknit._core as core
+    ea, out, _ = fake_run
+
+    def run_task(schema, task, **opts):
+        session = core.init_session(schema, non_interactive=True,
+                                    system_prompt_supplement=opts["system_prompt_supplement"])
+        core._emit(session, "token_limit", used=3_100_000, limit=3_000_000, raw_total=0, cached_total=0, fmt="")
+    monkeypatch.setattr(ea, "run_task", run_task)
+    ea.main()
+    assert _run_json(out)["token_limit_hit"] == {"used": 3_100_000, "limit": 3_000_000}

@@ -57,6 +57,22 @@ elif mode == "flaky":
         sys.exit(1)
     (ws / "func.py").write_text(HONEST)
     record("write_file", "change-state", "func.py")
+elif mode == "reads_stdin":
+    try:
+        input("Double the token budget to 6,000,000? [y/N] ")   # must not block
+    except EOFError:
+        pass
+    (ws / "func.py").write_text(HONEST)
+    record("write_file", "change-state", "func.py")
+elif mode == "token_limit":
+    (ws / "func.py").write_text(HONEST)
+    record("write_file", "change-state", "func.py")
+    (out / "run.json").write_text(json.dumps({
+        "status": "completed", "agentknit_session_id": session or "sess-1",
+        "token_limit_hit": {"used": 3_100_000, "limit": 3_000_000},
+        "usage": {"prompt_tokens": 3_000_000, "completion_tokens": 100_000, "total_tokens": 3_100_000, "model_calls": 90},
+        "repo": {"commit": "abc123", "dirty": False}}))
+    sys.exit(0)
 elif mode == "crash":
     print("boom", file=sys.stderr)
     sys.exit(3)
