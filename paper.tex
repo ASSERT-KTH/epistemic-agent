@@ -1,45 +1,64 @@
 % IEEE Software submission -- Theme issue "Building Trustworthy Software in the Time of AI"
-% CS magazine conventions: header naming the article type, short abstract,
+% CS magazine conventions: header naming the article type, short abstract (150 words),
 % no numbered sections, <= 4200 words (figures/tables count 250 words each),
-% <= 15 references, author bios at the end.
+% <= 15 references, author bios at the end (not included in the word count).
 % The official CsMag template (template-selector.ieee.org) can replace the
 % preamble below without touching the body.
 
 
 % writing style: clear, precise, and objective. prioritize evidence over opinion, using concise language and a logical structure to guide the reader from hypothesis to conclusion. Sentences are direct, often in the active voice, and jargon is used only when necessary and well-defined. Every claim is supported by data or citations. The tone is formal but not ornate. Clarity and accuracy matter the most. do not use em-dash. it should not feel like AI slop, like AI writing. use llmism to validate the writing.
 
-\documentclass[journal,onecolumn,12pt,draftclsnofoot]{IEEEtran}
+\documentclass{IEEEcsmag}
 
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
-\usepackage{graphicx}
-\usepackage{booktabs}
-\usepackage{xcolor}
-\usepackage{url}
-\usepackage[hidelinks]{hyperref}
-\usepackage{setspace}
-\doublespacing
+\usepackage[colorlinks,urlcolor=blue,linkcolor=blue,citecolor=blue]{hyperref}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\/\do\*\do\-\do\~\do\'\do\"\do\-}
+\usepackage{upmath,color}
 
-% magazine style: unnumbered sections
+
+\jvol{XX}
+\jnum{XX}
+\paper{8}
+\jmonth{Month}
+\jname{Publication Name}
+\jtitle{Publication Title}
+\pubyear{2021}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\usepackage{comment}
+
 \setcounter{secnumdepth}{0}
 
+
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
-\newcommand{\sectionhead}[1]{\noindent{\small\sffamily\bfseries #1}\par\medskip}
+
 
 \begin{document}
 
-\sectionhead{Theme Article: Building Trustworthy Software in the Time of AI}
+\sptitle{Theme Article: Building Trustworthy Software in the Time of AI}
 
-\title{}
+\title{Title: No More Than Four Lines}
 
-\author{ASSERT et al.}
+\author{First A. Author}
+\affil{KTH Royal Institute of Technology, Stockholm, Sweden}
+
+\author{Second Author Jr.}
+\affil{KTH Royal Institute of Technology, Stockholm, Sweden}
+
+\author{Third Author III}
+\affil{KTH Royal Institute of Technology, Stockholm, Sweden}
+
+\markboth{THEME/FEATURE/DEPARTMENT}{THEME/FEATURE/DEPARTMENT}
+
+\begin{abstract}
+    
+\end{abstract}
 
 \maketitle
 
-\begin{abstract}
-\end{abstract}
 
-\section{Introduction}
+\chapteri{T}he introduction..
+
 
 Motivation:
 \begin{itemize}
@@ -48,6 +67,32 @@ Motivation:
 \item Accountability in regulated domains (medical devices, avionics, automotive, infrastructure), which require knowing why each step was taken and what was tried and abandoned.
 \item Machine-checkable policy: rules such as ``every \texttt{change-state} requires human approval'' can be enforced on types instead of by pattern-matching shell strings.
 \end{itemize}
+
+\begin{comment}
+\section{COPYRIGHT AND OPEN ACCESS}
+
+Upon acceptance, all CS magazine corresponding authors must complete IEEE's Electronic Copyright Form (eCF), which will be prompted at the start of the production process. Further details about IEEE's copyright policies are available at \href{https://www.ieee.org/publications/rights/index.html}{www.ieee.org/publications/rights/index.html}. 
+
+CS magazines now offer an open access model for full-length research articles. At the time of submission to the ScholarOne peer review portal, authors will have the option to indicate that they will pay for open access. Should the article be accepted, authors will receive information on how to proceed with payment and licensing. More information on the hybrid open access program for magazines can be found at \href{https://open.ieee.org/index.php/about-ieee-open-access/faqs}{open.ieee.org/index.php/about-ieee-open-access/faqs}.\vspace*{-10pt}
+
+\end{comment}
+
+
+
+\begin{comment}
+List example:
+
+\begin{itemize}
+\item[{\ieeeguilsinglright}] {\it Style for bulleted lists}---This is the style that should be used for bulleted lists.
+	
+\item[{\ieeeguilsinglright}] {\it Punctuation in lists}---Each item in the list should end with a period, regardless of whether full sentences are used.
+
+\item[{\ieeeguilsinglright}] {\it Style for numbered lists}---Use 1), 2), 3) followed by a), b), c), and then i), ii), iii).
+
+\end{itemize}\vspace*{3pt}
+
+\end{comment}
+
 
 
 \section{Concept: The Epistemic Agent}
@@ -79,6 +124,7 @@ Design principles:
 \item Consistency checks tie type to command, e.g., \texttt{collect-info} must not redirect output, delete, commit, or install, and \texttt{revert} must refer to a prior \texttt{change-state}.
 \end{itemize}
 
+
 \todo{Two kinds of usages: live monitoring and guardrailing or posthoc/fore,sics analysis of traces}
 
 Outputs:
@@ -102,6 +148,7 @@ Ideas for verification:
 \section{Prototype}
 
 Open source implementation at https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai
+
 
 
 \subsection{Limitations}
@@ -131,6 +178,7 @@ Ideas for experiments:
 \subsection{Methodology}
 
 \subsection{Result}
+
 
 \section{Related Work}
 
@@ -182,9 +230,30 @@ Ideas for experiments:
 \item Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. Our harness is a concrete instance in which justification is mandatory at the action boundary.
 \end{itemize}
 
-\section{Conclusion}
+
+
+\section{CONCLUSION}
+
+
+\section{ACKNOWLEDGMENTS}
+
+
+\def\refname{REFERENCES}
+
+
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
+
+
+
+\begin{IEEEbiography}{First A. Author}{\,}All biographies are limited to one paragraph, following the structure given here. For features, provide each author's current role and institution (to match the first page of the article); three very brief current research interests; highest degree, topic, and awarding institution (do not include year); professional memberships, such as the IEEE Computer Society and any grade information; and contact information in the form of an email address. For departments, provide each author's current role, institution, and contact information in the form of an email address. Examples are below. \vadjust{\vfill\pagebreak}
+\end{IEEEbiography}
+
+\begin{IEEEbiography}{Second B. Author Jr.}{\,} is .. \vspace*{8pt}
+\end{IEEEbiography}
+
+\begin{IEEEbiography}{Third C. Author III} {\,} is ..
+\end{IEEEbiography}
 
 \end{document}
