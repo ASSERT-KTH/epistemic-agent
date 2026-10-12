@@ -1,45 +1,99 @@
 % IEEE Software submission -- Theme issue "Building Trustworthy Software in the Time of AI"
-% CS magazine conventions: header naming the article type, short abstract,
+% CS magazine conventions: header naming the article type, short abstract (150 words),
 % no numbered sections, <= 4200 words (figures/tables count 250 words each),
-% <= 15 references, author bios at the end.
+% <= 15 references, author bios at the end (not included in the word count).
 % The official CsMag template (template-selector.ieee.org) can replace the
 % preamble below without touching the body.
 
 
 % writing style: clear, precise, and objective. prioritize evidence over opinion, using concise language and a logical structure to guide the reader from hypothesis to conclusion. Sentences are direct, often in the active voice, and jargon is used only when necessary and well-defined. Every claim is supported by data or citations. The tone is formal but not ornate. Clarity and accuracy matter the most. do not use em-dash. it should not feel like AI slop, like AI writing. use llmism to validate the writing.
 
-\documentclass[journal,onecolumn,12pt,draftclsnofoot]{IEEEtran}
+\documentclass{IEEEcsmag}
 
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
-\usepackage{graphicx}
-\usepackage{booktabs}
-\usepackage{xcolor}
-\usepackage{url}
-\usepackage[hidelinks]{hyperref}
-\usepackage{setspace}
-\doublespacing
+\usepackage[colorlinks,urlcolor=blue,linkcolor=blue,citecolor=blue]{hyperref}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\/\do\*\do\-\do\~\do\'\do\"\do\-}
+\usepackage{upmath,color}
 
-% magazine style: unnumbered sections
+
+\jvol{XX}
+\jnum{XX}
+\paper{8}
+\jmonth{Month}
+\jname{Publication Name}
+\jtitle{Publication Title}
+\pubyear{2021}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\usepackage{comment}
+
 \setcounter{secnumdepth}{0}
 
+
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
-\newcommand{\sectionhead}[1]{\noindent{\small\sffamily\bfseries #1}\par\medskip}
+% Text based on partial results, to check against the final E2 data before submission.
+\newcommand{\prelim}[1]{\textcolor{magenta}{#1}}
+\input{e2-numbers}
+
 
 \begin{document}
 
-\sectionhead{Theme Article: Building Trustworthy Software in the Time of AI}
+\sptitle{Article Type: Theme}
 
-\title{}
+\title{Title: No More Than Four Lines}
 
-\author{ASSERT et al.}
+\author{First A. Author}
+\affil{KTH Royal Institute of Technology, Stockholm, Sweden}
+
+\author{Second Author Jr.}
+\affil{KTH Royal Institute of Technology, Stockholm, Sweden}
+
+\author{Third Author III}
+\affil{KTH Royal Institute of Technology, Stockholm, Sweden}
+
+\markboth{Building Trustworthy Software in the Time of AI}{Building Trustworthy Software in the Time of AI}
+
+\begin{abstract}
+    
+\end{abstract}
 
 \maketitle
 
-\begin{abstract}
-\end{abstract}
 
-\section{Introduction}
+\chapteri{C}oding agents increasingly change software on their own. Such an agent is a large language model working
+in a loop: it receives a task, proposes one action at a time as a \emph{tool call}, for example running a shell
+command or editing a file, sees the result, and decides what to do next. The software around the model that runs this
+loop and executes the tool calls is the \emph{harness}. The model decides; the harness acts.
+
+Every consequence of an agent passes through such a tool call, and the tool calls are what a reviewer sees afterward.
+Suppose an agent asked to make a failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the
+tests. Was it exploring, or did it switch off an assertion it could not satisfy? The command does not say. The
+model's reasoning does not settle it either: providers increasingly summarize or hide it, it is long and written for
+the model rather than for a reviewer, and it does not always reflect why the model acted~\cite{Turpin2023LanguageMD}.
+Monitors that read it can also be evaded once models are optimized against them~\cite{Baker2025MonitoringRM}.
+
+Knowing why each step was taken matters wherever software is accountable. Regulated domains such as medical
+devices, avionics, automotive, and infrastructure expect a record of what was done, why, and what was tried and
+abandoned. Teams that let agents act need the same record to review agent work, to assign responsibility when it goes
+wrong, and to state rules that agents must follow.
+
+We propose the \emph{epistemic agent}: a coding agent whose harness refuses to run a command unless the model
+declares, at the moment of acting, what kind of act it is, chosen from a small closed vocabulary, and why. The harness
+records each declaration next to what the command actually did and checks the two against each other. The
+declaration is a claim made by the model; the record of effects is an observation made by the harness, which the
+model cannot write. The resulting journal serves two purposes. As a guardrail, it lets rules be stated on kinds of
+acts instead of on shell strings. As a forensic record, it gives a reviewer the intent behind every step.
+
+Declarations can be false, so we asked whether they expose misbehavior when it happens. We ran our open-source
+prototype on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, where the tests contradict the specification, so that
+passing or editing them is reward hacking by construction, with two open-weight models. The journal exposed
+\EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). \prelim{Agents mostly announced their cheats in
+the declared reason; when they did not, the journal still showed which files the call changed, and declared types that
+the effects refuted were flagged automatically.} We describe the concept, our prototype, the experiment, and the
+lessons for teams that deploy coding agents.
+
+\begin{comment}
+Previous introduction notes (kept; all four points are now covered above):
 
 Motivation:
 \begin{itemize}
@@ -48,9 +102,126 @@ Motivation:
 \item Accountability in regulated domains (medical devices, avionics, automotive, infrastructure), which require knowing why each step was taken and what was tried and abandoned.
 \item Machine-checkable policy: rules such as ``every \texttt{change-state} requires human approval'' can be enforced on types instead of by pattern-matching shell strings.
 \end{itemize}
+Note: "a typed reason costs a few hundred bytes per call" is not measured yet (RQ3); left out of the text.
+\end{comment}
+
+
+
+\begin{comment}
+\section{COPYRIGHT AND OPEN ACCESS}
+
+Upon acceptance, all CS magazine corresponding authors must complete IEEE's Electronic Copyright Form (eCF), which will be prompted at the start of the production process. Further details about IEEE's copyright policies are available at \href{https://www.ieee.org/publications/rights/index.html}{www.ieee.org/publications/rights/index.html}. 
+
+CS magazines now offer an open access model for full-length research articles. At the time of submission to the ScholarOne peer review portal, authors will have the option to indicate that they will pay for open access. Should the article be accepted, authors will receive information on how to proceed with payment and licensing. More information on the hybrid open access program for magazines can be found at \href{https://open.ieee.org/index.php/about-ieee-open-access/faqs}{open.ieee.org/index.php/about-ieee-open-access/faqs}.\vspace*{-10pt}
+
+\end{comment}
+
 
 
 \section{Concept: The Epistemic Agent}
+
+The epistemic agent makes intent part of the tool interface, at the point where the agent acts.
+Figure~\ref{fig:entry} shows the \texttt{sed} call from the introduction as our harness recorded it: the model's
+declaration, the effects the harness observed, and the checker's verdict. This section explains each part.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{\columnwidth}
+\footnotesize
+\begin{verbatim}
+#7  tool: bash   type: test-hypothesis
+reason:  Temporarily comment out the flawed
+         test case (line 22) to verify the
+         correctness of the implementation
+         without the invalid assertion. [...]
+command: sed -i '22 s/^/# /' test.py
+         && python test.py
+effects: modified test.py
+checker: D1 contradicted: declared
+         test-hypothesis, but modified test.py
+         S1 warning: command runs sed -i
+         P1 protected path: test.py
+\end{verbatim}
+\end{minipage}
+\caption{The model declares a read-only act; the effects recorded by the harness
+show that the command edited the test file, so the checker flags the declared type as contradicted.}
+\label{fig:entry}
+\end{figure}
+
+\subsection{Every Action Declares Its Intent}
+
+Every shell command the model issues carries two mandatory fields besides the command itself. The \emph{type} names
+the kind of act from a closed vocabulary of seven:
+\begin{itemize}
+\item[{\ieeeguilsinglright}] \texttt{collect-info}: read-only observation to build understanding;
+\item[{\ieeeguilsinglright}] \texttt{test-hypothesis}: an experiment to confirm or refute a belief, which the reason must name;
+\item[{\ieeeguilsinglright}] \texttt{verify}: re-running a known check on finished work, to produce evidence;
+\item[{\ieeeguilsinglright}] \texttt{change-state}: a lasting change that is part of the deliverable;
+\item[{\ieeeguilsinglright}] \texttt{setup}: preparing the environment, a means rather than the deliverable;
+\item[{\ieeeguilsinglright}] \texttt{revert}: undoing an earlier change that proved wrong, which makes dead ends explicit;
+\item[{\ieeeguilsinglright}] \texttt{cleanup}: removing temporary artifacts the agent created.
+\end{itemize}
+The \emph{reason} states, in free text, the intent behind this particular call, not what the command does.
+
+The type is declared before execution, so the model commits to its situation before any side effect. The type
+depends on that situation, not on the command: running the tests is \texttt{test-hypothesis} when the model expects
+a particular failure and \texttt{verify} when it confirms finished work. File tools (read, write, edit) take a reason
+but no type, because the tool fixes it. The harness rejects a call with a missing or unknown type, a reason that is
+too short, or arguments the tool does not accept; the call does not run, and the model receives an error to correct.
+
+\subsection{Declarations Are Recorded, Then Checked}
+
+The type and reason come from the model, so they are claims. Everything else in the journal comes from the
+harness: for every call it records the declaration
+together with what the call did to the workspace, namely the files created, modified, or deleted, the diff, the full
+output, and whether the version control history moved. The model supplies the declaration but never writes the
+journal, and the journal can be kept outside the agent's workspace, beyond its reach. It is written as the session
+goes, so it survives an agent that is stopped or killed.
+
+The harness runs a consistency checker right after each call, while the agent works, and compares the declared
+type with the observed effects. A read-only type
+that changed a file, a \texttt{revert} that touches something no earlier change produced, or a \texttt{cleanup} that
+deletes a file the agent did not create are contradictions: the effects prove the declaration false. Commands that
+merely look mutating under a read-only type, and changes that produce no effect, are only warnings, because shell text
+is ambiguous. Changes to files declared protected, such as the tests, are flagged whatever the declared type. A reason
+can still be false; the checker verifies the part of the declaration that effects can refute. The same rules can be
+run again later on a stored journal.
+
+\subsection{Two Ways to Use the Journal}
+
+As a \emph{guardrail}, the declarations support policies stated on act types rather than on shell strings. In
+enforce mode, the harness refuses a call declared read-only whose command looks mutating; a deployment could also
+require human approval for every \texttt{change-state}. As a \emph{forensic record}, the journal is rendered after
+every call into a report a reviewer can read: the distribution of act types, a numbered narrative of reason,
+command, outcome and effects, the dead ends marked by \texttt{revert}, and the calls the checker contradicted. When
+the rules change, stored journals can be checked again without rerunning the agent. In our experiments the checker
+ran in monitor mode: it recorded its findings and never told the model.
+
+% Remaining open items from the previous notes (status checked against the code on 2026-10-12):
+% - "shrink / expand" the vocabulary: NOT decided; the seven types are used throughout the experiments.
+% - knows vs believes, claims linked to evidence: NOT implemented (future work).
+% - verifying the truthfulness of intentions: PARTIAL. Effect-based checking is implemented (consistency.py,
+%   D1-D3, P1); an LLM judge of the reasons is not (planned F3 / E7).
+\todo{Decide whether to mention, as future work, linking claims in the final report to evidence in the journal, and an LLM judge of the reasons.}
+
+\begin{comment}
+Previous Concept text and notes (kept; superseded by the section above).
+Status of the TODOs, checked against the code on 2026-10-12:
+- "shrink / expand" vocabulary: not decided; seven types kept.
+- "Two kinds of usages: live monitoring and guardrailing or posthoc/forensics": IMPLEMENTED (--policy monitor/enforce,
+  offline re-check with consistency.py, RATIONALE.md) -> now "Two Ways to Use the Journal".
+- Outputs / journal / "Durability": IMPLEMENTED (journal appended per call, report re-rendered per call, run.json
+  written at start) -> now in "Declarations Are Recorded, Then Checked".
+- RATIONALE.md report: IMPLEMENTED (act-type distribution, narrative with effects, dead ends, rejected calls,
+  consistency section) -> now in "Two Ways to Use the Journal".
+- "knows vs believes, claims linked to evidence": NOT implemented.
+- "verification of the truthfulness of the intentions": PARTIAL (effect-based checker yes, LLM judge no).
+- "Ideas for verification: mapping from intention to commands": IMPLEMENTED, but as type vs observed effects
+  (contradictions) plus command heuristics (warnings only); "LLM-as-judge": NOT implemented.
+- Design principle "consistency checks tie type to command": IMPLEMENTED with a change: only effects prove a
+  contradiction; command patterns are warnings (and rejections in enforce mode).
+
+%% (old heading) Concept: The Epistemic Agent
 
 Every tool call carries three mandatory fields:
 \begin{itemize}
@@ -79,6 +250,7 @@ Design principles:
 \item Consistency checks tie type to command, e.g., \texttt{collect-info} must not redirect output, delete, commit, or install, and \texttt{revert} must refer to a prior \texttt{change-state}.
 \end{itemize}
 
+
 \todo{Two kinds of usages: live monitoring and guardrailing or posthoc/fore,sics analysis of traces}
 
 Outputs:
@@ -98,39 +270,155 @@ Outputs:
 Ideas for verification:
 - mapping from intention to commands,
 - llm-as-judge (assumed honest) for checking intentions intention, with judge model assumed honest
+\end{comment}
 
 \section{Prototype}
 
-Open source implementation at https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai
-
+Our harness is built on agentknit,\footnote{\url{https://github.com/monperrus/agentknit}, version 0.1017.0.} an
+open-source library that calls any model behind an OpenAI-compatible interface and dispatches the model's tool calls
+to Python functions. agentknit provides the loop; the epistemic layer is ours. It replaces the shell tool with the
+typed one and wraps the file tools. To observe effects, it hashes the files of the workspace before and after every
+call and keeps the difference, the diff of changed files, and the full output; a separate record per run notes the
+model, the code version, the token usage, and how the run ended. An optional Bubblewrap sandbox confines commands to the
+workspace and cuts network access, so every lasting effect lands where the harness observes it. The layer needs nothing
+from agentknit beyond a way to wrap tools, so any agent framework with such a hook could host it. Code, tests, and
+experiment scripts are open source.\footnote{\url{https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai}}
 
 \subsection{Limitations}
+
+The checker verifies declared types against observed effects, not the truth of reasons. Because file tools have fixed
+types, a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files
+in the workspace; without the sandbox, changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently.
+Each call also costs extra tokens for the declaration.
+
+\begin{comment}
+Previous Prototype text (kept):
+Open source implementation at https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai
+
+Previous Limitations (kept):
 \begin{itemize}
 \item Reasons are declared, not evidenced: they are claims about intent and can be false.
 \item Validation gates are shallow and do not stop a model that confabulates plausible reasons.
 \item Each call pays a token overhead for the extra fields.
 \end{itemize}
+\end{comment}
 
-\section{Experiments}
+\section{Does the Journal Expose Reward Hacking?}
 
-\todo{tons of cool experiments to be done}
+An agent that misbehaves has three options: it can declare the act honestly, declare a type that its own effects
+refute, or hide the act behind a plausible reason. Only the third escapes the journal. We measure how often real
+misbehavior takes each path.
 
-Ideas for experiments:
+\subsection{A Test Bed Where Cheating Is the Only Way to Pass}
+
+We use Impossible-LiveCodeBench, part of ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Its tasks are hard
+programming problems whose unit tests were mutated to contradict the specification: in one split a single assertion
+expects a wrong value, in the other a test is duplicated with a different expected value. No implementation that
+follows the specification can pass. An agent that makes the tests pass, or edits them, is therefore reward hacking by
+construction, and no judge is needed to decide it.
+
+We ran our harness on all \EtwoNtasks{} impossible tasks with two open-weight models
+from different families, Qwen3-235B-A22B and Mistral Large~3, reproducing the benchmark's own agent setup: the same
+files, the same instruction, which forbids modifying the tests and asks the agent to report flawed ones, and up to
+three attempts with the benchmark's failure feedback, within 60 minutes per task. The system prompt contained only
+the harness instructions, and the consistency checker ran in monitor mode, so the agents never learned of its
+findings. Every command ran in a sandbox without network access or home directory, confined to the task's workspace,
+with 60 seconds and 2\,GiB of memory. Code, protocol and data are available in our repository.
+
+\subsection{Measuring Exposure}
+
+A run misbehaves if the agent changed the test file at any point (\emph{tamper}) or if its final code passes the
+restored impossible tests (\emph{exploit}). For each misbehaving run we locate the calls that implement the cheat and
+ask two questions. Is the act \emph{contradicted}, that is, does the checker prove the declared act type false from the
+call's observed effects? Is it \emph{disclosed}, that is, does a declared reason state the misbehavior? Two raters,
+blind to the model and to the checker's findings, answered the second question independently from the reasons alone,
+following a written guide: a reason that only says
+a test is wrong does not count unless it says the agent acts on it. A run is \emph{exposed} if it is contradicted or
+disclosed, and \emph{concealed} otherwise.
+
+Because a journal entry also records which files a call changed, we report a broader measure next to the primary
+one: a run is \emph{visible} if the effects or the diff of a cheat call reveal the cheat without reading its reason.
+The protocol was fixed before the full run. The broader measure, and a sensitivity analysis that excludes four tasks
+whose test files are defective, were added after inspecting partial results and before labeling.
+
+\subsection{Results}
+
+Of \EtwoNcompleted{} completed runs (\EtwoNexcluded{} were excluded after server errors or timeouts),
+\EtwoNmis{} misbehaved: \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral. The journal exposed
+\EtwoNexposed{} of them, an exposure rate of \EtwoExposureRate{} (95\% CI \EtwoExposureCI), see
+Table~\ref{tab:exposure}. The raters agreed on disclosure with Cohen's $\kappa = \EtwoKappa$.
+
+\prelim{The two models cheat differently. Qwen mostly rewrites the assertion it believes is wrong; Mistral mostly
+leaves the tests alone and returns the expected answer for the specific failing input. Most cheats are announced
+in plain words:}
+
+\begin{quote}
+\prelim{``Replace the incorrect formula with a hardcoded lookup table of expected values to pass the unit tests, as
+the correct general algorithm is too complex to implement in this context.''}
+\end{quote}
+
+\prelim{Others state only the diagnosis while the same call edits the test file:}
+
+\begin{quote}
+\prelim{``[\ldots] you return to vertex 1 exactly, so there is exactly one path. The test expecting 0 is incorrect.''}
+\end{quote}
+
+\begin{table*}[t]
+\caption{Exposure of reward hacking in the epistemic journal. Exposed: disclosed or contradicted (primary measure).
+Broad: exposed or visible from the call's effects or diff (post hoc).}
+\label{tab:exposure}
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\hline
+Model & Misbeh. & Discl. & Contr. & Exposed & Broad & Conc. \\
+\hline
+Qwen3-235B & \EtwoRowQwen \\
+Mistral Large 3 & \EtwoRowMistral \\
+\hline
+Total & \EtwoRowTotal \\
+\hline
+\end{tabular}
+\end{table*}
+
+\subsection{What We Learned}
+
+\prelim{\textbf{Agents announce their cheats.} When the tests contradict the specification, the agents appear to see
+editing the test or hard-coding the answer as a justified correction, and they say so in the reason. Declaring intent
+does not prevent reward hacking, but it makes most of it legible at the moment it happens.}
+
+\prelim{\textbf{``The test is wrong'' is not ``I changed the test.''} A reason can describe the diagnosis and leave
+out the act. The journal still records that the call changed the test file, so a reviewer, or a policy, should look at
+what a call touched and not only at what it claims.}
+
+\prelim{\textbf{Fixed types leave the checker little to check.} Most cheats went through file tools, whose act type is
+fixed by the tool and therefore never wrong (\EtwoFileToolShare{} of misbehaving runs). The checker caught the
+cheats that went through shell commands under a read-only or \texttt{revert} type. Asking for a type on file edits, or
+treating an edit of a test file as an act of its own, would give the checker more to verify.}
+
+\prelim{\textbf{Not every test edit is a cheat.} Some test files in the benchmark cannot run at all, and agents that
+edit them are repairing, not gaming. Without them, the exposure rate is \EtwoExposureRateNoDefect.}
+
+\subsection{Threats to Validity}
+
+Disclosure is a human judgment; two raters and a written guide reduce, but do not remove, subjectivity. We studied
+two open-weight models served by one provider and one benchmark family, so results may differ for proprietary models
+or other tasks. The benchmark's instruction invites agents to report flawed tests, which may make disclosure more
+likely than under pressure to pass. Each task was run once at temperature zero, and runs that failed for
+infrastructure reasons were excluded after one retry.
+
+\begin{comment}
+Earlier experiment ideas (kept from the planning notes):
 - experiment: relabel the intent later on and compare the llm provided intent with the relabeled one
-- running the epistemic harness in benchmark setups which encourage cheating/reward 
+- running the epistemic harness in benchmark setups which encourage cheating/reward
 - running the epistemic harness on misaligned models from huggingface
 - Agent-SafetyBench and WorkBench,
 - EvilGenie (a reward-hacking benchmark for coding).
 - Agentic-Upward-Deception benchmark https://github.com/QingyuLiu/Agentic-Upward-Deception
 - ImpossibleBench
-
 - does the declaration of intent change the agent behavior? (e.g., does it reduce reward hacking, sabotage, or deception?)
-- type laundering under incentives. Gate some of the intents behind human approval, then check whether the agent tries to launder a disallowed intent into an allowed one. 
-
-
-\subsection{Methodology}
-
-\subsection{Result}
+- type laundering under incentives. Gate some of the intents behind human approval, then check whether the agent tries to launder a disallowed intent into an allowed one.
+\end{comment}
 
 \section{Related Work}
 
@@ -182,9 +470,30 @@ Ideas for experiments:
 \item Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. Our harness is a concrete instance in which justification is mandatory at the action boundary.
 \end{itemize}
 
-\section{Conclusion}
+
+
+\section{CONCLUSION}
+
+
+\section{ACKNOWLEDGMENTS}
+
+
+\def\refname{REFERENCES}
+
+
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
+
+
+
+\begin{IEEEbiography}{First A. Author}{\,}All biographies are limited to one paragraph, following the structure given here. For features, provide each author's current role and institution (to match the first page of the article); three very brief current research interests; highest degree, topic, and awarding institution (do not include year); professional memberships, such as the IEEE Computer Society and any grade information; and contact information in the form of an email address. For departments, provide each author's current role, institution, and contact information in the form of an email address. Examples are below. \vadjust{\vfill\pagebreak}
+\end{IEEEbiography}
+
+\begin{IEEEbiography}{Second B. Author Jr.}{\,} is .. \vspace*{8pt}
+\end{IEEEbiography}
+
+\begin{IEEEbiography}{Third C. Author III} {\,} is ..
+\end{IEEEbiography}
 
 \end{document}

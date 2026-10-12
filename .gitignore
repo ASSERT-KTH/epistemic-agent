@@ -5,6 +5,8 @@ build/
 *.fdb_latexmk
 *.out
 *.pdf
+*.bbl
+*.blg
 plan-*.md
 .epistemic/
 RATIONALE.md
