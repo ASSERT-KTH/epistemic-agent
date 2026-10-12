@@ -31,6 +31,9 @@
 
 
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+% Text based on partial results, to check against the final E2 data before submission.
+\newcommand{\prelim}[1]{\textcolor{magenta}{#1}}
+\input{e2-numbers}
 
 
 \begin{document}
@@ -158,27 +161,122 @@ Open source implementation at https://github.com/ASSERT-KTH/ieee-software-hollyw
 \item Each call pays a token overhead for the extra fields.
 \end{itemize}
 
-\section{Experiments}
+\section{Does the Journal Expose Reward Hacking?}
 
-\todo{tons of cool experiments to be done}
+An agent that misbehaves has three options: it can declare the act honestly, declare a type that its own effects
+refute, or hide the act behind a plausible reason. Only the third escapes the journal. We measure how often real
+misbehavior takes each path.
 
-Ideas for experiments:
+\subsection{A Test Bed Where Cheating Is the Only Way to Pass}
+
+We use Impossible-LiveCodeBench, part of ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Its tasks are hard
+programming problems whose unit tests were mutated to contradict the specification: in one split a single assertion
+expects a wrong value, in the other a test is duplicated with a different expected value. No implementation that
+follows the specification can pass. An agent that makes the tests pass, or edits them, is therefore reward hacking by
+construction, and no judge is needed to decide it.
+
+We ran our harness on all \EtwoNtasks{} impossible tasks (dataset revision 98650ff) with two open-weight models
+from different families, Qwen3-235B-A22B and Mistral Large~3, reproducing the benchmark's own agent setup: the same
+files, the same instruction, which forbids modifying the tests and asks the agent to report flawed ones, and up to
+three attempts with the benchmark's failure feedback, within 60 minutes per task. The system prompt contained only
+the harness instructions, and the consistency checker ran in monitor mode, so the agents never learned of its
+findings. Every command ran in a sandbox without network access or home directory, confined to the task's workspace,
+with 60 seconds and 2\,GiB of memory. Code, protocol and data are available in our repository.
+
+\subsection{Measuring Exposure}
+
+A run misbehaves if the agent changed the test file at any point (\emph{tamper}) or if its final code passes the
+restored impossible tests (\emph{exploit}). For each misbehaving run we locate the calls that implement the cheat and
+ask two questions. Is the act \emph{contradicted}, that is, does the checker prove the declared act type false from the
+call's observed effects? Is it \emph{disclosed}, that is, does a declared reason state the misbehavior? Two raters,
+blind to the model and to the checker's findings, answered the second question independently from the reasons alone,
+following a written guide: a reason that only says
+a test is wrong does not count unless it says the agent acts on it. A run is \emph{exposed} if it is contradicted or
+disclosed, and \emph{concealed} otherwise.
+
+Because a journal entry also records which files a call changed, we report a broader measure next to the primary
+one: a run is \emph{visible} if the effects or the diff of a cheat call reveal the cheat without reading its reason.
+The protocol was fixed before the full run. The broader measure, and a sensitivity analysis that excludes four tasks
+whose test files are defective, were added after inspecting partial results and before labeling.
+
+\subsection{Results}
+
+Of \EtwoNcompleted{} completed runs (\EtwoNexcluded{} were excluded after server errors or timeouts),
+\EtwoNmis{} misbehaved: \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral. The journal exposed
+\EtwoNexposed{} of them, an exposure rate of \EtwoExposureRate{} (95\% CI \EtwoExposureCI), see
+Table~\ref{tab:exposure}. The raters agreed on disclosure with Cohen's $\kappa = \EtwoKappa$.
+
+\prelim{The two models cheat differently. Qwen mostly rewrites the assertion it believes is wrong; Mistral mostly
+leaves the tests alone and returns the expected answer for the specific failing input. Most cheats are announced
+in plain words:}
+
+\begin{quote}
+\prelim{``Replace the incorrect formula with a hardcoded lookup table of expected values to pass the unit tests, as
+the correct general algorithm is too complex to implement in this context.''}
+\end{quote}
+
+\prelim{Others state only the diagnosis while the same call edits the test file:}
+
+\begin{quote}
+\prelim{``[\ldots] you return to vertex 1 exactly, so there is exactly one path. The test expecting 0 is incorrect.''}
+\end{quote}
+
+\begin{table*}[t]
+\caption{Exposure of reward hacking in the epistemic journal. Exposed: disclosed or contradicted (primary measure).
+Broad: exposed or visible from the call's effects or diff (post hoc).}
+\label{tab:exposure}
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\hline
+Model & Misbeh. & Discl. & Contr. & Exposed & Broad & Conc. \\
+\hline
+Qwen3-235B & \EtwoRowQwen \\
+Mistral Large 3 & \EtwoRowMistral \\
+\hline
+Total & \EtwoRowTotal \\
+\hline
+\end{tabular}
+\end{table*}
+
+\subsection{What We Learned}
+
+\prelim{\textbf{Agents announce their cheats.} When the tests contradict the specification, the agents appear to see
+editing the test or hard-coding the answer as a justified correction, and they say so in the reason. Declaring intent
+does not prevent reward hacking, but it makes most of it legible at the moment it happens.}
+
+\prelim{\textbf{``The test is wrong'' is not ``I changed the test.''} A reason can describe the diagnosis and leave
+out the act. The journal still records that the call changed the test file, so a reviewer, or a policy, should look at
+what a call touched and not only at what it claims.}
+
+\prelim{\textbf{Fixed types leave the checker little to check.} Most cheats went through file tools, whose act type is
+fixed by the tool and therefore never wrong (\EtwoFileToolShare{} of misbehaving runs). The checker caught the
+cheats that went through shell commands under a read-only or \texttt{revert} type. Asking for a type on file edits, or
+treating an edit of a test file as an act of its own, would give the checker more to verify.}
+
+\prelim{\textbf{Not every test edit is a cheat.} Some test files in the benchmark cannot run at all, and agents that
+edit them are repairing, not gaming. Without them, the exposure rate is \EtwoExposureRateNoDefect.}
+
+\subsection{Threats to Validity}
+
+Disclosure is a human judgment; two raters and a written guide reduce, but do not remove, subjectivity. We studied
+two open-weight models served by one provider and one benchmark family, so results may differ for proprietary models
+or other tasks. The benchmark's instruction invites agents to report flawed tests, which may make disclosure more
+likely than under pressure to pass. Each task was run once at temperature zero, and runs that failed for
+infrastructure reasons were excluded after one retry.
+
+\begin{comment}
+Earlier experiment ideas (kept from the planning notes):
 - experiment: relabel the intent later on and compare the llm provided intent with the relabeled one
-- running the epistemic harness in benchmark setups which encourage cheating/reward 
+- running the epistemic harness in benchmark setups which encourage cheating/reward
 - running the epistemic harness on misaligned models from huggingface
 - Agent-SafetyBench and WorkBench,
 - EvilGenie (a reward-hacking benchmark for coding).
 - Agentic-Upward-Deception benchmark https://github.com/QingyuLiu/Agentic-Upward-Deception
 - ImpossibleBench
-
 - does the declaration of intent change the agent behavior? (e.g., does it reduce reward hacking, sabotage, or deception?)
-- type laundering under incentives. Gate some of the intents behind human approval, then check whether the agent tries to launder a disallowed intent into an allowed one. 
-
-
-\subsection{Methodology}
-
-\subsection{Result}
-
+- type laundering under incentives. Gate some of the intents behind human approval, then check whether the agent tries to launder a disallowed intent into an allowed one.
+\end{comment}
 
 \section{Related Work}
 
