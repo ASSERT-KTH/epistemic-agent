@@ -181,90 +181,27 @@ is ambiguous}. Changes to files declared protected, such as the tests, are flagg
 run again later on a stored journal.
 
 \subsection{Two Ways to Use the Journal}
+\todo{"journal" is a key concept that has never been defined}
 
-As a \emph{guardrail}, the declarations support policies stated on act types rather than on shell strings. In
-enforce mode, the harness refuses a call declared read-only whose command looks mutating; a deployment could also
-require human approval for every \texttt{change-state}. As a \emph{forensic record}, the journal is rendered after
-every call into a report a reviewer can read: the distribution of act types, a numbered narrative of reason,
-command, outcome and effects, the dead ends marked by \texttt{revert}, and the calls the checker contradicted. When
-the rules change, stored journals can be checked again without rerunning the agent. In our experiments the checker
+The epistemic agent provides a \emph{guardrail} because the declarations \todo{declaration? same as type? same as type+reason/intent? never defined} support policies stated on act types. \todo{never said there are multiple modes} In
+enforce mode, the harness refuses a call declared read-only whose command \todo{looks? too vague. "is"?}looks mutating; \todo{not sure we want human in the loop here, move to discussion}a deployment could also
+require human approval for every \texttt{change-state}.
+
+\textbf{Forensics.} As a \emph{forensic record}, the journal is rendered after
+every call into a report a reviewer can read and analyze with the act types, a numbered narrative of reason,
+command, outcome and effects, the dead ends marked by \texttt{revert}, \todo{ and the calls the checker contradicted -> that's key, it should be a dedicated sentence paragraph, not a last point in an enumeration}.
+
+\todo{we're in Concept, don't talk about experiments} In our experiments the checker
 ran in monitor mode: it recorded its findings and never told the model.
 
-% Remaining open items from the previous notes (status checked against the code on 2026-10-12):
-% - "shrink / expand" the vocabulary: NOT decided; the seven types are used throughout the experiments.
-% - knows vs believes, claims linked to evidence: NOT implemented (future work).
-% - verifying the truthfulness of intentions: PARTIAL. Effect-based checking is implemented (consistency.py,
-%   D1-D3, P1); an LLM judge of the reasons is not (planned F3 / E7).
 \todo{Decide whether to mention, as future work, linking claims in the final report to evidence in the journal, and an LLM judge of the reasons.}
 
-\begin{comment}
-Previous Concept text and notes (kept; superseded by the section above).
-Status of the TODOs, checked against the code on 2026-10-12:
-- "shrink / expand" vocabulary: not decided; seven types kept.
-- "Two kinds of usages: live monitoring and guardrailing or posthoc/forensics": IMPLEMENTED (--policy monitor/enforce,
-  offline re-check with consistency.py, RATIONALE.md) -> now "Two Ways to Use the Journal".
-- Outputs / journal / "Durability": IMPLEMENTED (journal appended per call, report re-rendered per call, run.json
-  written at start) -> now in "Declarations Are Recorded, Then Checked".
-- RATIONALE.md report: IMPLEMENTED (act-type distribution, narrative with effects, dead ends, rejected calls,
-  consistency section) -> now in "Two Ways to Use the Journal".
-- "knows vs believes, claims linked to evidence": NOT implemented.
-- "verification of the truthfulness of the intentions": PARTIAL (effect-based checker yes, LLM judge no).
-- "Ideas for verification: mapping from intention to commands": IMPLEMENTED, but as type vs observed effects
-  (contradictions) plus command heuristics (warnings only); "LLM-as-judge": NOT implemented.
-- Design principle "consistency checks tie type to command": IMPLEMENTED with a change: only effects prove a
-  contradiction; command patterns are warnings (and rejections in enforce mode).
-
-%% (old heading) Concept: The Epistemic Agent
-
-Every tool call carries three mandatory fields:
-\begin{itemize}
-\item \texttt{command}: the shell command to execute.
-\item \texttt{type}: the kind of act, chosen from a closed vocabulary.
-\item \texttt{reason}: free text stating the intent behind this specific call, not what the command does.
-\end{itemize}
-
-The vocabulary has seven act types \todo{shrink / expand}:
-\begin{itemize}
-\item \texttt{collect-info}: read-only observation to build understanding.
-\item \texttt{test-hypothesis}: an experiment to confirm or refute a current belief; the reason names the belief and the observation that would refute it.
-\item \texttt{change-state}: a persistent mutation that is part of the deliverable.
-\item \texttt{verify}: re-running a known check on finished work; nothing is in doubt, the goal is evidence.
-\item \texttt{setup}: preparing the environment (installs, scaffolding, fixtures); a means, not the deliverable.
-\item \texttt{revert}: undoing a previous \texttt{change-state} that proved wrong, which makes dead ends explicit.
-\item \texttt{cleanup}: removing temporary artifacts created by the agent.
-\end{itemize}
-
-Design principles:
-\begin{itemize}
-\item The type is declared before execution, so the agent commits to its epistemic situation before any side effect.
-\item The type depends on the situation, not the command: \texttt{pytest} is \texttt{test-hypothesis} when a failure is expected and \texttt{verify} when confirming finished work.
-\item File tools (read, write, edit) require a reason but no type, because their act type is fixed by the tool; asking for it would only invite inconsistency.
-\item Calls are validated in-process: a missing or unknown type, or a reason that is too short, is rejected without execution and returned as a tool error for the model to fix.
-\item Consistency checks tie type to command, e.g., \texttt{collect-info} must not redirect output, delete, commit, or install, and \texttt{revert} must refer to a prior \texttt{change-state}.
-\end{itemize}
 
 
-\todo{Two kinds of usages: live monitoring and guardrailing or posthoc/fore,sics analysis of traces}
-
-Outputs:
-\begin{itemize}
-\item A journal (\texttt{.epistemic/journal.jsonl}) records each accepted call with sequence number, timestamp, type, command, reason, and outcome.
-\item The report exists on disk even if the agent is killed mid-run. Duarability
-\end{itemize}
-
-\todo{A human-readable report (\texttt{RATIONALE.md}) is regenerated after every call: the distribution of act types, a numbered narrative of reason, command, and outcome, and a list of dead ends.}
-
-
-
-\todo{An agent that tracks what it knows vs.\ believes: every claim in the final report is linked to supporting evidence in the trajectory.}
-
-\todo{work on concept / prototype on the verification of the trustfullness of the intentions}
-
-Ideas for verification:
-- mapping from intention to commands,
-- llm-as-judge (assumed honest) for checking intentions intention, with judge model assumed honest
-\end{comment}
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Prototype}
 
 Our harness is built on agentknit,\footnote{\url{https://github.com/monperrus/agentknit}, version 0.1017.0.} an
