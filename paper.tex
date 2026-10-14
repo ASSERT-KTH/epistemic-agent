@@ -204,22 +204,21 @@ ran in monitor mode: it recorded its findings and never told the model.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Prototype}
 
-Our harness is built on agentknit,\footnote{\url{https://github.com/monperrus/agentknit}, version 0.1017.0.} an
+The epistemic agent is fully implemented in a prototype.
+Our harness is built on agentknit,\footnote{\url{https://github.com/monperrus/agentknit}} an
 open-source library that calls any model behind an OpenAI-compatible interface and dispatches the model's tool calls
 to Python functions. agentknit provides the loop; the epistemic layer is ours. It replaces the shell tool with the
-typed one and wraps the file tools. To observe effects, it hashes the files of the workspace before and after every
+\todo{"typed one" unclear} typed one and wraps the file tools.
+
+To observe effects, it hashes the files of the workspace before and after every
 call and keeps the difference, the diff of changed files, and the full output; a separate record per run notes the
-model, the code version, the token usage, and how the run ended. An optional Bubblewrap sandbox confines commands to the
-workspace and cuts network access, so every lasting effect lands where the harness observes it. The layer needs nothing
-from agentknit beyond a way to wrap tools, so any agent framework with such a hook could host it. Code, tests, and
+model, the code version, the token usage, and how the run ended.
+
+\todo{in general, in a aper, don't talk about optional things, it's confusing and does not help for acceptance, either things are or are not}
+An \todo{optional} Bubblewrap sandbox confines commands to the
+workspace and cuts network access, so every lasting effect lands where the harness observes it. Code, tests, and
 experiment scripts are open source.\footnote{\url{https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai}}
 
-\subsection{Limitations}
-
-The checker verifies declared types against observed effects, not the truth of reasons. Because file tools have fixed
-types, a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files
-in the workspace; without the sandbox, changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently.
-Each call also costs extra tokens for the declaration.
 
 \begin{comment}
 Previous Prototype text (kept):
@@ -233,6 +232,10 @@ Previous Limitations (kept):
 \end{itemize}
 \end{comment}
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Does the Journal Expose Reward Hacking?}
 
 An agent that misbehaves has three options: it can declare the act honestly, declare a type that its own effects
@@ -350,6 +353,17 @@ Earlier experiment ideas (kept from the planning notes):
 - type laundering under incentives. Gate some of the intents behind human approval, then check whether the agent tries to launder a disallowed intent into an allowed one.
 \end{comment}
 
+
+\section{Discussion}
+
+\subsection{Limitations}
+
+The checker verifies declared types against observed effects, not the truth of reasons. Because file tools have fixed
+types, a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files
+in the workspace; without the sandbox, changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently.
+Each call also costs extra tokens for the declaration.
+
+
 \section{Related Work}
 
 \noindent\textbf{Intent integrity and guardrails.}
@@ -402,13 +416,8 @@ Earlier experiment ideas (kept from the planning notes):
 
 
 
-\section{CONCLUSION}
+\section{Conclusion}
 
-
-\section{ACKNOWLEDGMENTS}
-
-
-\def\refname{REFERENCES}
 
 
 
@@ -416,7 +425,7 @@ Earlier experiment ideas (kept from the planning notes):
 \bibliography{references}
 
 
-
+\begin{comment}
 \begin{IEEEbiography}{First A. Author}{\,}All biographies are limited to one paragraph, following the structure given here. For features, provide each author's current role and institution (to match the first page of the article); three very brief current research interests; highest degree, topic, and awarding institution (do not include year); professional memberships, such as the IEEE Computer Society and any grade information; and contact information in the form of an email address. For departments, provide each author's current role, institution, and contact information in the form of an email address. Examples are below. \vadjust{\vfill\pagebreak}
 \end{IEEEbiography}
 
@@ -425,5 +434,7 @@ Earlier experiment ideas (kept from the planning notes):
 
 \begin{IEEEbiography}{Third C. Author III} {\,} is ..
 \end{IEEEbiography}
+\end{comment}
+
 
 \end{document}
