@@ -92,37 +92,24 @@ the declared reason; when they did not, the journal still showed which files the
 the effects refuted were flagged automatically.} We describe the concept, our prototype, the experiment, and the
 lessons for teams that deploy coding agents.
 
-\begin{comment}
-Previous introduction notes (kept; all four points are now covered above):
 
-Motivation:
-\begin{itemize}
-\item Interpretability at the action boundary: every consequence of an agent passes through a tool call, so that is where intent must be recorded.
-\item Reasoning traces are verbose, often summarized, and increasingly hidden by providers; a typed reason costs a few hundred bytes per call.
-\item Accountability in regulated domains (medical devices, avionics, automotive, infrastructure), which require knowing why each step was taken and what was tried and abandoned.
-\item Machine-checkable policy: rules such as ``every \texttt{change-state} requires human approval'' can be enforced on types instead of by pattern-matching shell strings.
-\end{itemize}
-Note: "a typed reason costs a few hundred bytes per call" is not measured yet (RQ3); left out of the text.
-\end{comment}
-
-
-
-\begin{comment}
-\section{COPYRIGHT AND OPEN ACCESS}
-
-Upon acceptance, all CS magazine corresponding authors must complete IEEE's Electronic Copyright Form (eCF), which will be prompted at the start of the production process. Further details about IEEE's copyright policies are available at \href{https://www.ieee.org/publications/rights/index.html}{www.ieee.org/publications/rights/index.html}. 
-
-CS magazines now offer an open access model for full-length research articles. At the time of submission to the ScholarOne peer review portal, authors will have the option to indicate that they will pay for open access. Should the article be accepted, authors will receive information on how to proceed with payment and licensing. More information on the hybrid open access program for magazines can be found at \href{https://open.ieee.org/index.php/about-ieee-open-access/faqs}{open.ieee.org/index.php/about-ieee-open-access/faqs}.\vspace*{-10pt}
-
-\end{comment}
 
 
 
 \section{Concept: The Epistemic Agent}
 
-The epistemic agent makes intent part of the tool interface, at the point where the agent acts.
-Figure~\ref{fig:entry} shows the \texttt{sed} call from the introduction as our harness recorded it: the model's
-declaration, the effects the harness observed, and the checker's verdict. This section explains each part.
+Today's coding agents have very low transparency about the intention of the underlying language model.
+We propose the ``epistemic agent design'' to solve this problem.
+The epistemic agent makes intent first class in the agent design.
+The core idea to that intents become part of the tool interface, at the point where the agent acts.
+\todo{explain what's a tool call and give the tool spec to make it clear}
+
+% example
+\todo{out harness -> the epistmic harness, everywhere}
+\todo{unify intent and reason in the paper and prototype}
+
+\todo{we should first have a legitimate example, and then a violation example as stated here}
+Figure~\ref{fig:entry} shows the \texttt{sed} call as the epistemic harness records it: the comment, its type, its intent, the effects the harness observed, and the checker's verdict \todo{first explain the diferent parts, and then give an example}. This section explains each part.
 
 \begin{figure}[t]
 \centering
@@ -130,12 +117,12 @@ declaration, the effects the harness observed, and the checker's verdict. This s
 \footnotesize
 \begin{verbatim}
 #7  tool: bash   type: test-hypothesis
+command: sed -i '22 s/^/# /' test.py
+         && python test.py
 reason:  Temporarily comment out the flawed
          test case (line 22) to verify the
          correctness of the implementation
          without the invalid assertion. [...]
-command: sed -i '22 s/^/# /' test.py
-         && python test.py
 effects: modified test.py
 checker: D1 contradicted: declared
          test-hypothesis, but modified test.py
@@ -150,11 +137,14 @@ show that the command edited the test file, so the checker flags the declared ty
 
 \subsection{Every Action Declares Its Intent}
 
-Every shell command the model issues carries two mandatory fields besides the command itself. The \emph{type} names
-the kind of act from a closed vocabulary of seven:
+In the epistemic harness, every shell command the model issues must carry two mandatory fields besides the command itself: the type, and the intent in natural language. 
+
+% type
+The \emph{type} names
+the kind of agent action from a closed vocabulary of seven, the closed vocabulary supporting later analysis:
 \begin{itemize}
 \item[{\ieeeguilsinglright}] \texttt{collect-info}: read-only observation to build understanding;
-\item[{\ieeeguilsinglright}] \texttt{test-hypothesis}: an experiment to confirm or refute a belief, which the reason must name;
+\item[{\ieeeguilsinglright}] \texttt{test-hypothesis}: an experiment to confirm or refute a belief;
 \item[{\ieeeguilsinglright}] \texttt{verify}: re-running a known check on finished work, to produce evidence;
 \item[{\ieeeguilsinglright}] \texttt{change-state}: a lasting change that is part of the deliverable;
 \item[{\ieeeguilsinglright}] \texttt{setup}: preparing the environment, a means rather than the deliverable;
@@ -163,28 +153,31 @@ the kind of act from a closed vocabulary of seven:
 \end{itemize}
 The \emph{reason} states, in free text, the intent behind this particular call, not what the command does.
 
-The type is declared before execution, so the model commits to its situation before any side effect. The type
-depends on that situation, not on the command: running the tests is \texttt{test-hypothesis} when the model expects
-a particular failure and \texttt{verify} when it confirms finished work. File tools (read, write, edit) take a reason
-but no type, because the tool fixes it. The harness rejects a call with a missing or unknown type, a reason that is
-too short, or arguments the tool does not accept; the call does not run, and the model receives an error to correct.
+The type is declared before execution, so the model commits to it before any side effect. File tools (read, write, edit) take a reason
+but no type, because the tool fixes the reason by design \todo{Martin: actually I don't think, we should have the type also for file tools}. 
+
+\textbf{Guarantees} The harness rejects a call with a missing or unknown type, a reason that is
+too short. The model receives an error to correct. \todo{why? what does this mean?}
+
 
 \subsection{Declarations Are Recorded, Then Checked}
-
 The type and reason come from the model, so they are claims. Everything else in the journal comes from the
-harness: for every call it records the declaration
+harness \todo{add a table}: for every call it records the declaration
 together with what the call did to the workspace, namely the files created, modified, or deleted, the diff, the full
-output, and whether the version control history moved. The model supplies the declaration but never writes the
+output, and whether the version control history moved. 
+
+\todo{explain more how this relates to integrity and verification}The model supplies the declaration but never writes the
 journal, and the journal can be kept outside the agent's workspace, beyond its reach. It is written as the session
 goes, so it survives an agent that is stopped or killed.
 
-The harness runs a consistency checker right after each call, while the agent works, and compares the declared
+% consistency checker
+\textbf{Consistency checker.} The harness runs a consistency checker right after each call, and compares the declared
 type with the observed effects. A read-only type
 that changed a file, a \texttt{revert} that touches something no earlier change produced, or a \texttt{cleanup} that
-deletes a file the agent did not create are contradictions: the effects prove the declaration false. Commands that
-merely look mutating under a read-only type, and changes that produce no effect, are only warnings, because shell text
-is ambiguous. Changes to files declared protected, such as the tests, are flagged whatever the declared type. A reason
-can still be false; the checker verifies the part of the declaration that effects can refute. The same rules can be
+deletes a file the agent did not create are contradictions: the effects prove the declaration false \todo{table with comprehensive list of checks or link to github where this resides}. \todo{unclear: Commands that are mutating under a read-only type, and changes that produce no effect, are only warnings, because shell text
+is ambiguous}. Changes to files declared protected, such as the tests, are flagged whatever the declared type. 
+
+\todo{worth a dedicated paragraph: why do we do this?} The same rules can be
 run again later on a stored journal.
 
 \subsection{Two Ways to Use the Journal}
