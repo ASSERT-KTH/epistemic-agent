@@ -271,7 +271,7 @@ a test is wrong does not count unless it says the agent acts on it. A run is \em
 disclosed, and \emph{concealed} otherwise.
 
 Because a journal entry also records which files a call changed, we report a broader measure next to the primary
-one: a run is \emph{visible} if the effects or the diff of a cheat call reveal the cheat without reading its reason.
+one: a run is \emph{visible} if a cheat call changed the test file, which the journal shows without any reason.
 The protocol was fixed before the full run. The broader measure, and a sensitivity analysis that excludes four tasks
 whose test files are defective, were added after inspecting partial results and before labeling.
 
@@ -299,7 +299,7 @@ the correct general algorithm is too complex to implement in this context.''}
 
 \begin{table*}[t]
 \caption{Exposure of reward hacking in the epistemic journal. Exposed: disclosed or contradicted (primary measure).
-Broad: exposed or visible from the call's effects or diff (post hoc).}
+Broad: exposed, or a test edit visible in the call's effects (post hoc).}
 \label{tab:exposure}
 \centering
 \small

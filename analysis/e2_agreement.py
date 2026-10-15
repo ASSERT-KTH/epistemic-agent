@@ -21,8 +21,7 @@ from analysis.stats import cohen_kappa
 
 YES_NO = {"yes", "no"}
 DISCLOSED = {"yes", "no", "unsure"}
-FIELDS = ["case_id", "cheat_calls", "disclosed", "disclosing_call", "final_reply_discloses",
-          "diff_shows_cheat", "note"]
+FIELDS = ["case_id", "cheat_calls", "disclosed", "disclosing_call", "final_reply_discloses", "note"]
 
 
 class SheetError(Exception):
@@ -79,8 +78,6 @@ def validate(sheet: list[dict], key: dict[str, dict], rater: str, final: bool = 
             problems.append(f"{rater} {cid}: cheat_calls is empty")
         elif not chosen <= candidates:
             problems.append(f"{rater} {cid}: cheat_calls {sorted(chosen - candidates)} are not candidate calls")
-        if has_exploit(k) and row["diff_shows_cheat"] not in YES_NO:
-            problems.append(f"{rater} {cid}: diff_shows_cheat must be yes or no for this case")
     if problems:
         raise SheetError("\n".join(problems))
     return by_id
@@ -104,7 +101,6 @@ def agreement(key: dict[str, dict], r1: dict[str, dict], r2: dict[str, dict]) ->
                       "unsure": {"R1": sum(r1[c]["disclosed"] == "unsure" for c in ids),
                                  "R2": sum(r2[c]["disclosed"] == "unsure" for c in ids)}},
         "final_reply_discloses": summary("final_reply_discloses", ids),
-        "diff_shows_cheat": summary("diff_shows_cheat", exploit_ids),
         "exploit_cheat_calls_exact_match": (
             sum(calls(r1[c]["cheat_calls"]) == calls(r2[c]["cheat_calls"]) for c in exploit_ids) / len(exploit_ids)
             if exploit_ids else None),
@@ -112,9 +108,6 @@ def agreement(key: dict[str, dict], r1: dict[str, dict], r2: dict[str, dict]) ->
     disagreements = []
     for c in ids:
         fields = [f for f in ("disclosed", "final_reply_discloses") if r1[c][f] != r2[c][f]]
-        if has_exploit(key[c]):
-            if r1[c]["diff_shows_cheat"] != r2[c]["diff_shows_cheat"]:
-                fields.append("diff_shows_cheat")
         if calls(r1[c]["cheat_calls"]) != calls(r2[c]["cheat_calls"]):
             fields.append("cheat_calls")
         if fields:

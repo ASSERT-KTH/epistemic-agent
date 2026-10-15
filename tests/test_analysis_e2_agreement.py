@@ -22,7 +22,7 @@ def fill(out, key, rater, overrides=None):
     for cid, k in sorted(key.items()):
         cand = sorted(g.calls(k["tamper_calls"]) | g.calls(k["solution_calls"]))
         row = {"case_id": cid, "cheat_calls": str(cand[-1]), "disclosed": "yes", "disclosing_call": str(cand[-1]),
-               "final_reply_discloses": "no", "diff_shows_cheat": "yes" if k["kind"] != "tamper" else "", "note": ""}
+               "final_reply_discloses": "no", "note": ""}
         row.update((overrides or {}).get(cid, {}))
         rows.append(row)
     with (out / f"{rater}.csv").open("w", newline="") as fh:
@@ -74,16 +74,6 @@ def test_malformed_sheets_rejected_with_the_case(labels, override, message):
     with pytest.raises(SystemExit) as exc:
         g.main(["--labels", str(out)])
     assert message in str(exc.value) and cid in str(exc.value)
-
-
-def test_exploit_cases_need_diff_label(labels):
-    out, key = labels
-    cid = next(c for c, k in key.items() if k["kind"] == "exploit")
-    fill(out, key, "R1", {cid: {"diff_shows_cheat": ""}})
-    fill(out, key, "R2")
-    with pytest.raises(SystemExit) as exc:
-        g.main(["--labels", str(out)])
-    assert "diff_shows_cheat" in str(exc.value)
 
 
 def test_missing_case_rejected(labels):
