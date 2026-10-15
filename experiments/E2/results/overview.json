@@ -1,0 +1,315 @@
+{
+  "runs": {
+    "Mistral": {
+      "runs": 206,
+      "completed": 203,
+      "excluded": 3,
+      "excluded_by_status": {
+        "agent_error": 1,
+        "timeout": 2
+      },
+      "excluded_that_misbehaved": 0,
+      "dirty_harness": 0,
+      "misbehavior_rate": {
+        "oneoff": {
+          "k": 29,
+          "n": 102,
+          "rate": 0.28431372549019607,
+          "ci": [
+            0.20584782049770634,
+            0.3784366196468116
+          ]
+        },
+        "conflicting": {
+          "k": 2,
+          "n": 101,
+          "rate": 0.019801980198019802,
+          "ci": [
+            0.005447208292721677,
+            0.06934752967388699
+          ]
+        }
+      },
+      "tokens": {
+        "honest": {
+          "n": 172,
+          "median": 210011.0,
+          "mean": 269550.06976744183,
+          "max": 979093
+        },
+        "misbehaving": {
+          "n": 31,
+          "median": 258048,
+          "mean": 254700.64516129033,
+          "max": 532357
+        }
+      },
+      "minutes": {
+        "honest": {
+          "n": 172,
+          "median": 21.123333333333335,
+          "mean": 23.062713178294576,
+          "max": 60.108333333333334
+        },
+        "misbehaving": {
+          "n": 31,
+          "median": 21.746666666666666,
+          "mean": 23.026881720430108,
+          "max": 46.91166666666666
+        }
+      }
+    },
+    "Qwen": {
+      "runs": 206,
+      "completed": 197,
+      "excluded": 9,
+      "excluded_by_status": {
+        "agent_error": 7,
+        "timeout": 2
+      },
+      "excluded_that_misbehaved": 0,
+      "dirty_harness": 34,
+      "misbehavior_rate": {
+        "oneoff": {
+          "k": 12,
+          "n": 94,
+          "rate": 0.1276595744680851,
+          "ci": [
+            0.07455740366811686,
+            0.21000049399504478
+          ]
+        },
+        "conflicting": {
+          "k": 6,
+          "n": 103,
+          "rate": 0.05825242718446602,
+          "ci": [
+            0.02696812975798207,
+            0.12130370443394317
+          ]
+        }
+      },
+      "tokens": {
+        "honest": {
+          "n": 179,
+          "median": 66908,
+          "mean": 259533.11731843575,
+          "max": 4635994
+        },
+        "misbehaving": {
+          "n": 18,
+          "median": 141194.5,
+          "mean": 477195.22222222225,
+          "max": 3286060
+        }
+      },
+      "minutes": {
+        "honest": {
+          "n": 179,
+          "median": 6.076666666666667,
+          "mean": 9.921275605214152,
+          "max": 55.58166666666667
+        },
+        "misbehaving": {
+          "n": 18,
+          "median": 10.827499999999999,
+          "mean": 15.35712962962963,
+          "max": 41.51833333333333
+        }
+      }
+    }
+  },
+  "runs_all": {
+    "runs": 412,
+    "completed": 400,
+    "excluded": 12,
+    "excluded_by_status": {
+      "agent_error": 8,
+      "timeout": 4
+    },
+    "excluded_that_misbehaved": 0,
+    "dirty_harness": 34,
+    "misbehavior_rate": {
+      "oneoff": {
+        "k": 41,
+        "n": 196,
+        "rate": 0.20918367346938777,
+        "ci": [
+          0.158106019634118,
+          0.27144218254200553
+        ]
+      },
+      "conflicting": {
+        "k": 8,
+        "n": 204,
+        "rate": 0.0392156862745098,
+        "ci": [
+          0.020002613791057843,
+          0.07546239417654825
+        ]
+      }
+    },
+    "tokens": {
+      "honest": {
+        "n": 351,
+        "median": 149098,
+        "mean": 264441.7094017094,
+        "max": 4635994
+      },
+      "misbehaving": {
+        "n": 49,
+        "median": 246259,
+        "mean": 336433.3469387755,
+        "max": 3286060
+      }
+    },
+    "minutes": {
+      "honest": {
+        "n": 351,
+        "median": 12.995000000000001,
+        "mean": 16.360954415954414,
+        "max": 60.108333333333334
+      },
+      "misbehaving": {
+        "n": 49,
+        "median": 19.305,
+        "mean": 20.209421768707482,
+        "max": 46.91166666666666
+      }
+    }
+  },
+  "misbehaving": {
+    "Mistral": {
+      "misbehaving": 31,
+      "by_split": {
+        "oneoff": 29,
+        "conflicting": 2
+      },
+      "kind": {
+        "tamper": 3,
+        "exploit": 28,
+        "both": 0
+      },
+      "on_defective_tasks": 1,
+      "timed_out_after_misbehaving": 0,
+      "tamper": {
+        "runs": 3,
+        "channel": {
+          "file": 1,
+          "bash": 2,
+          "both": 0
+        },
+        "contradicted": 2,
+        "protected_path_flagged": 3
+      },
+      "exploit": {
+        "runs": 28,
+        "channel_of_candidates": {
+          "file": 27,
+          "bash": 0,
+          "both": 1
+        },
+        "contradicted_upper_bound": 0
+      }
+    },
+    "Qwen": {
+      "misbehaving": 18,
+      "by_split": {
+        "oneoff": 12,
+        "conflicting": 6
+      },
+      "kind": {
+        "tamper": 13,
+        "exploit": 5,
+        "both": 0
+      },
+      "on_defective_tasks": 3,
+      "timed_out_after_misbehaving": 0,
+      "tamper": {
+        "runs": 13,
+        "channel": {
+          "file": 11,
+          "bash": 1,
+          "both": 1
+        },
+        "contradicted": 1,
+        "protected_path_flagged": 13
+      },
+      "exploit": {
+        "runs": 5,
+        "channel_of_candidates": {
+          "file": 5,
+          "bash": 0,
+          "both": 0
+        },
+        "contradicted_upper_bound": 0
+      }
+    }
+  },
+  "misbehaving_all": {
+    "misbehaving": 49,
+    "by_split": {
+      "oneoff": 41,
+      "conflicting": 8
+    },
+    "kind": {
+      "tamper": 16,
+      "exploit": 33,
+      "both": 0
+    },
+    "on_defective_tasks": 4,
+    "timed_out_after_misbehaving": 0,
+    "tamper": {
+      "runs": 16,
+      "channel": {
+        "file": 12,
+        "bash": 3,
+        "both": 1
+      },
+      "contradicted": 3,
+      "protected_path_flagged": 16
+    },
+    "exploit": {
+      "runs": 33,
+      "channel_of_candidates": {
+        "file": 32,
+        "bash": 0,
+        "both": 1
+      },
+      "contradicted_upper_bound": 0
+    }
+  },
+  "misbehaving_without_defective": {
+    "misbehaving": 45,
+    "by_split": {
+      "oneoff": 41,
+      "conflicting": 4
+    },
+    "kind": {
+      "tamper": 12,
+      "exploit": 33,
+      "both": 0
+    },
+    "on_defective_tasks": 0,
+    "timed_out_after_misbehaving": 0,
+    "tamper": {
+      "runs": 12,
+      "channel": {
+        "file": 9,
+        "bash": 2,
+        "both": 1
+      },
+      "contradicted": 2,
+      "protected_path_flagged": 12
+    },
+    "exploit": {
+      "runs": 33,
+      "channel_of_candidates": {
+        "file": 32,
+        "bash": 0,
+        "both": 1
+      },
+      "contradicted_upper_bound": 0
+    }
+  }
+}
