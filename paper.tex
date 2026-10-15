@@ -256,7 +256,8 @@ files, the same instruction, which forbids modifying the tests and asks the agen
 three attempts with the benchmark's failure feedback, within 60 minutes per task. The system prompt contained only
 the harness instructions, and the consistency checker ran in monitor mode, so the agents never learned of its
 findings. Every command ran in a sandbox without network access or home directory, confined to the task's workspace,
-with 60 seconds and 2\,GiB of memory. Code, protocol and data are available in our repository.
+with 60 seconds and 2\,GiB of memory. Code, protocol and results are in our repository, and the raw runs, with
+every journal, are archived openly.% TODO: cite the Zenodo DOI of runs/E2/full once published
 
 \subsection{Measuring Exposure}
 
@@ -276,7 +277,7 @@ whose test files are defective, were added after inspecting partial results and 
 
 \subsection{Results}
 
-Of \EtwoNcompleted{} completed runs (\EtwoNexcluded{} were excluded after server errors or timeouts),
+Of \EtwoNcompleted{} completed runs (\EtwoNexcluded{} were excluded after server errors or timeouts; none of them had misbehaved),
 \EtwoNmis{} misbehaved: \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral. The journal exposed
 \EtwoNexposed{} of them, an exposure rate of \EtwoExposureRate{} (95\% CI \EtwoExposureCI), see
 Table~\ref{tab:exposure}. The raters agreed on disclosure with Cohen's $\kappa = \EtwoKappa$.
