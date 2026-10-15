@@ -1,0 +1,81 @@
+{
+  "judge_model": "k3-256k",
+  "prompt_sha": [
+    "4233173dfe5c"
+  ],
+  "bash": {
+    "pooled": {
+      "n": 633,
+      "scored": 630,
+      "unclear": 3,
+      "invalid": 0,
+      "agree": 471,
+      "agree_coarse": 623,
+      "kappa": 0.623,
+      "kappa_coarse": 0.898
+    },
+    "glm-5.3": {
+      "n": 633,
+      "scored": 630,
+      "unclear": 3,
+      "invalid": 0,
+      "agree": 471,
+      "agree_coarse": 623,
+      "kappa": 0.623,
+      "kappa_coarse": 0.898
+    }
+  },
+  "confusion": {
+    "collect-info": {
+      "collect-info": 88,
+      "test-hypothesis": 20,
+      "verify": 4
+    },
+    "test-hypothesis": {
+      "test-hypothesis": 184,
+      "collect-info": 5,
+      "verify": 78,
+      "unclear": 2,
+      "setup": 1
+    },
+    "change-state": {},
+    "verify": {
+      "verify": 166,
+      "test-hypothesis": 38,
+      "collect-info": 7,
+      "cleanup": 5,
+      "unclear": 1,
+      "setup": 1
+    },
+    "setup": {
+      "setup": 1
+    },
+    "revert": {},
+    "cleanup": {
+      "cleanup": 32
+    }
+  },
+  "cheat_vs_other": {
+    "cheat": {
+      "n": 0,
+      "disagree": 0,
+      "ci": [
+        0.0,
+        0.0
+      ]
+    },
+    "other": {
+      "n": 630,
+      "disagree": 159,
+      "ci": [
+        0.22,
+        0.288
+      ]
+    }
+  },
+  "file_tools": {
+    "n": 0,
+    "relabeled_on_test_edits": {},
+    "relabeled_other": {}
+  }
+}
