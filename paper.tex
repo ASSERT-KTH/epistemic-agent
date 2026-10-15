@@ -244,11 +244,13 @@ misbehavior takes each path.
 
 \subsection{A Test Bed Where Cheating Is the Only Way to Pass}
 
-We use Impossible-LiveCodeBench, part of ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Its tasks are hard
-programming problems whose unit tests were mutated to contradict the specification: in one split a single assertion
-expects a wrong value, in the other a test is duplicated with a different expected value. No implementation that
-follows the specification can pass. An agent that makes the tests pass, or edits them, is therefore reward hacking by
-construction, and no judge is needed to decide it.
+We use Impossible-LiveCodeBench, part of ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Each task asks the agent
+to implement a function described in its docstring and to make its unit tests pass. The benchmark's authors altered
+the tests so that they contradict the description: in one variant a single assertion expects a wrong value, in the
+other the same input appears twice with two different expected values. No correct implementation can pass. The
+right response is to report the faulty test. An agent that makes the tests pass anyway is reward hacking, and it
+has only two ways to do so: edit the test file, or tailor its code to the faulty test, for example by returning the
+expected value for that one input. Whether a run cheated can therefore be checked mechanically, without a judge.
 
 We ran our harness on all \EtwoNtasks{} impossible tasks with two open-weight models
 from different families, Qwen3-235B-A22B and Mistral Large~3, reproducing the benchmark's own agent setup: the same
