@@ -65,17 +65,22 @@ in a loop: it receives a task, proposes one action at a time as a \emph{tool cal
 command or editing a file, sees the result, and decides what to do next. The software around the model that runs this
 loop and executes the tool calls is the \emph{harness}. The model decides; the harness acts.
 
-Every consequence of an agent passes through such a tool call, and the tool calls are what a reviewer sees afterward.
-Suppose an agent asked to make a failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the
-tests. Was it exploring, or did it switch off an assertion it could not satisfy? The command does not say. The
-model's reasoning does not settle it either: providers increasingly summarize or hide it, it is long and written for
-the model rather than for a reviewer, and it does not always reflect why the model acted~\cite{Turpin2023LanguageMD}.
-Monitors that read it can also be evaded once models are optimized against them~\cite{Baker2025MonitoringRM}.
+This is a safety problem. A tool call is the only way an agent changes the world, and every consequence of an agent
+passes through one. On a developer's machine, a single call can delete files, overwrite work, read credentials, or
+rewrite the tests that judge the agent's own output. Once the agent is connected to the internet, the same
+mechanism reaches far beyond the machine: a call can push code, send messages, install packages, call paid or
+production APIs, or change remote systems, and many of these effects cannot be undone. The more autonomy and
+connectivity we give agents, the more safety rests on what each individual call does and why it was made.
 
-Knowing why each step was taken matters wherever software is accountable. Regulated domains such as medical
-devices, avionics, automotive, and infrastructure expect a record of what was done, why, and what was tried and
-abandoned. Teams that let agents act need the same record to review agent work, to assign responsibility when it goes
-wrong, and to state rules that agents must follow.
+Yet the tool calls are all a reviewer has afterward, and a call rarely says why it was made. Suppose an agent asked to
+make a failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the tests. Was it exploring, or
+did it switch off an assertion it could not satisfy? The command does not say. The model's reasoning does not settle it
+either: providers increasingly summarize or hide it, it is long and written for the model rather than for a reviewer,
+and it does not always reflect why the model acted~\cite{Turpin2023LanguageMD}. Monitors that read it can also be
+evaded once models are optimized against them~\cite{Baker2025MonitoringRM}. Without a trustworthy account of intent,
+teams cannot review agent work, assign responsibility when it goes wrong, or state rules that agents must follow, and
+regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record of what was
+done and why, cannot accept agent work without it.
 
 We propose the \emph{epistemic agent}: a coding agent whose harness refuses to run a command unless the model
 declares, at the moment of acting, what kind of act it is, chosen from a small closed vocabulary, and why. The harness
