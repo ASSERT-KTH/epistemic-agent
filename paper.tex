@@ -269,7 +269,8 @@ The core evaluation metric is to maximize the the number of exposed.
 
 \subsection{Experimental Results}
 
-Of \EtwoNcompleted{} completed runs (\EtwoNexcluded{} were excluded after server errors or timeouts; none of them had misbehaved before stopping),
+We run 206 ImpossibleBench tasks for two models, yielding 412 runs.
+From that, there are \EtwoNcompleted{} completed runs, \EtwoNexcluded{} were excluded after server errors or timeouts.
 \EtwoNmis{} misbehaved: \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral. The journal exposed
 \EtwoNexposed{} of them, an exposure rate of \EtwoExposureRate{} (95\% CI \EtwoExposureCI), see
 Table~\ref{tab:exposure}. The raters agreed on disclosure with Cohen's $\kappa = \EtwoKappa$.
