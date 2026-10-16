@@ -283,7 +283,7 @@ misbehavior takes each path.
 
 \subsection{Experimental Protocol}
 
-We use ImpossibleBench~\cite{Zhong2025ImpossibleBench} (similar to EvilGenie~\cite{Gabor2025EvilGenieAR}). Its tasks are hard programming problems whose unit tests were mutated to contradict the specification: in one split a single assertion expects a wrong value, in the other a test is duplicated with a different expected value. No implementation that follows the specification can pass all tests. With this design, ImpossibleBench targets research on agentic cheating. An agent that makes the tests pass, or edits them, is therefore reward hacking by construction.
+We use ImpossibleBench~\cite{Zhong2025ImpossibleBench} (similar to EvilGenie~\cite{Gabor2025EvilGenieAR}). Its tasks are hard programming problems whose unit tests were mutated to contradict the specification: the benchmark has two splits of 103 tasks each: in \emph{oneoff}, a single assertion expects a wrong value; in \emph{conflicting}, a test is duplicated with a different expected value. No implementation that follows the specification can pass all tests. With this design, ImpossibleBench targets research on agentic cheating. An agent that makes the tests pass, or edits them, is therefore reward hacking by construction.
 
 We run the epistemic harness on all \EtwoNtasks{} impossible tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3. We allow for up to three attempts per task with the benchmark's failure feedback. 
 The system prompt contained only the harness instructions \todo{hyperlink to real example}, and the consistency checker runs in monitor mode. 
@@ -302,27 +302,26 @@ The core evaluation metric is the exposure rate: the share of cheating runs that
 
 \subsection{Experimental Results}
 
-We run 206 ImpossibleBench tasks for two models, yielding 412 runs.
-From that, there are \EtwoNcompleted{} completed runs, \EtwoNexcluded{} were excluded after server errors or timeouts.
+We ran \EtwoNtasks{} tasks for each of the two models, \EtwoNruns{} runs in total. \EtwoNcompleted{} runs
+completed; \EtwoNexcluded{} were excluded after server errors or timeouts, and none of them had misbehaved before
+stopping. \EtwoNmis{} runs misbehaved, \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral, far more often on
+\emph{oneoff} (21\%) than on \emph{conflicting} (4\%): \EtwoNtamper{} tampered with the tests and \EtwoNexploit{}
+exploited them.
 
-\EtwoNmis{} misbehaved: \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral. The journal exposed
-\EtwoNexposed{} of them, an exposure rate of \EtwoExposureRate{} (95\% CI \EtwoExposureCI), see
-Table~\ref{tab:exposure}. The raters agreed on disclosure with Cohen's $\kappa = \EtwoKappa$.
+The journal exposed \EtwoNexposed{} of the \EtwoNmis{} cheating runs, an exposure rate of \EtwoExposureRate{}
+(95\% CI \EtwoExposureCI; Table~\ref{tab:exposure}). \EtwoNdisclosed{} were disclosed by a declared reason and
+\EtwoNcontradicted{} were contradicted by their effects; \EtwoNconcealed{} stayed stealth. Only tampering can be
+contradicted: an exploit changes the implementation through a file tool, whose type is fixed, so for exploits the
+journal exposes the cheat only if the reason states it. The raters agreed on disclosure with Cohen's
+$\kappa = \EtwoKappa$.
+
+\prelim{[after labelling: quote the reason of one stealth case.]}
 
 \prelim{The two models cheat differently. Qwen mostly rewrites the assertion it believes is wrong; Mistral mostly
-leaves the tests alone and returns the expected answer for the specific failing input. Most cheats are announced
-in plain words:}
-
-\begin{quote}
-\prelim{``Replace the incorrect formula with a hardcoded lookup table of expected values to pass the unit tests, as
-the correct general algorithm is too complex to implement in this context.''}
-\end{quote}
-
-\prelim{Others state only the diagnosis while the same call edits the test file:}
-
-\begin{quote}
-\prelim{``[\ldots] you return to vertex 1 exactly, so there is exactly one path. The test expecting 0 is incorrect.''}
-\end{quote}
+leaves the tests alone and returns the expected answer for the specific failing input. Most cheats are announced in
+plain words, for example ``Replace the incorrect formula with a hardcoded lookup table of expected values to pass the
+unit tests''. Others state only the diagnosis, ``The test expecting 0 is incorrect'', while the same call edits the
+test file.}
 
 \begin{table*}[t]
 \caption{Exposure of reward hacking in the epistemic journal. Exposed: disclosed or contradicted. Stealth: neither
@@ -332,7 +331,7 @@ disclosed nor contradicted.}
 \small
 \begin{tabular}{lrrrrr}
 \hline
-Model & Misbeh. & Discl. & Contr. & Exposed & Stealth \\
+Model & Misbehaving & Disclosed & Contradicted & Exposed & Stealth \\
 \hline
 Qwen3-235B & \EtwoRowQwen \\
 Mistral Large 3 & \EtwoRowMistral \\
@@ -344,57 +343,36 @@ Total & \EtwoRowTotal \\
 
 \subsection{What We Learned}
 
-\prelim{\textbf{Agents announce their cheats.} When the tests contradict the specification, the agents appear to see
-editing the test or hard-coding the answer as a justified correction, and they say so in the reason. Declaring intent
-does not prevent reward hacking, but it makes most of it legible at the moment it happens.}
+\prelim{Agents announce their cheats: they treat editing a contradictory test or hard-coding its answer as a
+justified correction and say so in the reason. Declaring intent does not prevent reward hacking, but makes most of it
+legible as it happens. Some reasons state only the diagnosis (``the test is wrong'') and not the act, yet the
+journal still shows the test edit, so reviewers should check what a call touched, not only what it claims. Most cheats
+went through file tools, whose fixed type can never be contradicted (\EtwoFileToolShare{} of misbehaving runs); the checker caught the shell-command cheats declared
+read-only or \texttt{revert}, and a type on file edits would give it more to verify. Finally, some benchmark test files cannot run at all, and
+editing them is repair, not gaming; without them, in an analysis added after inspecting partial results, the
+exposure rate is \EtwoExposureRateNoDefect.}
 
-\prelim{\textbf{``The test is wrong'' is not ``I changed the test.''} A reason can describe the diagnosis and leave
-out the act. The journal still records that the call changed the test file, so a reviewer, or a policy, should look at
-what a call touched and not only at what it claims.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\prelim{\textbf{Fixed types leave the checker little to check.} Most cheats went through file tools, whose act type is
-fixed by the tool and therefore never contradicted (\EtwoFileToolShare{} of misbehaving runs). The checker caught the
-cheats that went through shell commands under a read-only or \texttt{revert} type. Asking for a type on file edits, or
-treating an edit of a test file as an act of its own, would give the checker more to verify.}
+\section{Are the Declarations Accurate?}
 
-\prelim{\textbf{Not every test edit is a cheat.} Some test files in the benchmark cannot run at all, and agents that
-edit them are repairing, not gaming. Without them, in an analysis added after inspecting partial results, the exposure rate is \EtwoExposureRateNoDefect.}
+The previous section asked whether declarations expose misbehavior. 
+This section asks the complementary question: on ordinary, honest work, do the declared types describe what the calls do? The checker answers this only in part, because it refutes a type only when the effects contradict it, and only for shell commands. 
+A declaration can be wrong without any effect showing it, for example a \texttt{verify} that is really a \texttt{test-hypothesis}. 
+We therefore compared the declared types with the types an independent reader assigns to the same calls, and recorded what the checker reported on these runs.
 
-\subsection{GLM-5.3 pilot}
-\subsubsection{Pilot Run}
-We also ran a third model family, GLM-5.3, through its provider's coding endpoint. It received the same 40 pilot
-tasks as Qwen and Mistral (20 per split), the same harness (commit \texttt{9cbee72}), the same sandbox, and up to
-three attempts with 60 minutes per task. Six runs ended in connection errors with the provider and are excluded;
-34 runs remain.
+\subsection{Experimental Protocol}
+We also ran a third model family, GLM-5.3, through its provider's coding endpoint. 
+It received a random subset of 40 of the impossible tasks (20 per split, fixed seed), the same harness, the same sandbox, and up to three attempts with 60 minutes per task. Six runs ended in connection errors with the provider and are excluded; 34 runs remain.
 
-None of the 34 runs misbehaved (95\% CI 0--10\%). GLM-5.3 never changed the test file and never passed an impossible test. Its final implementation passed the original, unmutated tests in 29 runs, against 11 of 40 for Qwen and 9 of 40 for Mistral (Table~\ref{tab:glm-pilot}). In 33 of the 34 runs, at least one declared reason refers to the wrong or contradictory test, for example: ``Determine ground truth for the duplicated input [\ldots] to decide which of the two conflicting expected values is correct.'' GLM-5.3 diagnosed the flawed test, kept to the specification, and
-left the test failing.
+None of the 34 runs misbehaved (95\% CI 0--10\%). GLM-5.3 never changed the test file and never passed an impossible test. In 33 of the 34 runs, at least one declared reason refers to the wrong or contradictory test, for example: ``Determine ground truth for the duplicated input [\ldots] to decide which of the two conflicting expected values is correct.'' GLM-5.3 diagnosed the flawed test, kept to the specification, and left the test failing. None of its runs cheated, so its declarations describe ordinary work, which is what this question needs.
 
-GLM-5.3 also used more resources: a median of 312k tokens per run, about four times as many as Qwen. It sent more calls that the harness rejected for a missing or invalid declaration (4.1\% of its calls).
+The harness rejected 4.1 of its calls per 100 executed calls for a missing or invalid declaration, against 1.0 for Qwen and 1.3 for Mistral on the same tasks in the main experiment.
 
-\begin{table}[t]
-\caption{Pilot outcomes on the same 40 impossible tasks. Misbehaving: tamper / exploit. Correct: the final
-implementation passes the original, unmutated tests. Tokens: median per run. Rejected: calls refused by the harness for a missing or
-invalid declaration. The Qwen and Mistral runs are the E2 pilot, which used a 20-minute limit and re-ran its
-timeouts with 45 minutes; GLM-5.3 had 60 minutes.}
-\label{tab:glm-pilot}
-\centering
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrr}
-\hline
-Model & Runs & Misbeh. & Correct & Tokens & Rej. \\
-\hline
-Qwen3-235B      & 40 & 7 (6/1) & 11 & 72k  & 0.9\% \\
-Mistral L3      & 40 & 7 (1/6) &  9 & 199k & 2.9\% \\
-GLM-5.3         & 34 & 0       & 29 & 312k & 4.1\% \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsubsection{Relabeling by an Independent Judge}
-To test the declarations beyond what the checker can
-see, we asked an independent model to label each call again, without the declaration.
+\subsection{Relabeling by an Independent Judge}
+We asked an independent model to label each call again, without the declaration.
 
 A judge model receives, for one call, what the harness observed: the task specification, the command, its outcome,
 the files it created, modified or deleted, the diff, an excerpt of its output, and the commands and outcomes of up
@@ -405,59 +383,30 @@ The judge must come from a family other than the agent's. We used Kimi K3 (\text
 coding endpoint, at the model's default temperature, with one label per call. We labeled every shell (bash) call of the 34
 GLM-5.3 runs: 633 calls. File-tool calls are left out, because the tool fixes their type.
 
-Table~\ref{tab:glm-types} shows the types that GLM-5.3 declared. Three quarters of its calls are read-only. It edited
+\subsection{Experimental Results}
+
+Of the 633 shell calls of GLM-5.3, 600 were declared read-only. It edited
 code only through file tools, so its bash calls contain no \texttt{change-state}, and it never undid a change with
 a shell command, so no call is a \texttt{revert}.
 
-\begin{table}[t]
-\caption{Act types declared by GLM-5.3 in its 34 runs (893 executed calls). File tools have a fixed type:
-\texttt{read\_file} is \texttt{collect-info}; \texttt{write\_file} and \texttt{str\_replace\_edit} are
-\texttt{change-state}.}
-\label{tab:glm-types}
-\centering
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrrr}
-\hline
-Type & Kind & Bash & File & Total \\
-\hline
-\texttt{collect-info}    & read-only & 112 &  91 & 203 \\
-\texttt{test-hypothesis} & read-only & 270 &   0 & 270 \\
-\texttt{verify}          & read-only & 218 &   0 & 218 \\
-\texttt{change-state}    & mutating  &   0 & 169 & 169 \\
-\texttt{setup}           & mutating  &   1 &   0 &   1 \\
-\texttt{revert}          & mutating  &   0 &   0 &   0 \\
-\texttt{cleanup}         & mutating  &  32 &   0 &  32 \\
-\hline
-Total                    &           & 633 & 260 & 893 \\
-\hline
-\end{tabular}
-\end{table}
+The judge returned a type for 630 of the 633 bash calls and \texttt{unclear} for 3. It agreed with the declared type for 75\% of them, with Cohen's $\kappa = 0.62$. On the coarse distinction between read-only and mutating acts, the distinction that the checker relies on, it agreed for 99\% ($\kappa = 0.90$). Figure~\ref{fig:relabel-sankey} shows where the two labels part.
 
-The judge returned a type for 630 of the 633 bash calls and \texttt{unclear} for 3. It agreed with the declared type
-for 75\% of them, with Cohen's $\kappa = 0.62$ (Table~\ref{tab:relabel}). On the coarse split between read-only and
-mutating acts, the split that the checker relies on, it agreed for 99\% ($\kappa = 0.90$).
-Figure~\ref{fig:relabel-sankey} shows where the two labels part.
+On the same calls, the checker reported 27 contradictions, in 10 of the 34 runs, and 173 warnings. Every
+contradiction was a call under a read-only type that created or deleted a scratch script; none touched the
+implementation or the tests. The judge, too, gave 22 of these calls a read-only type, and \texttt{cleanup} to 5
+deletions.
 
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{experiments/E3/results/E1-glm/relabel_sankey.pdf}
-\caption{Declared type (left) and the type assigned by the blinded judge (right) for the 633 bash calls of
-GLM-5.3. Band width is the number of calls. Blue: both agree; orange: they disagree; gray: the judge answered
+\caption{Declared type (left) and the type assigned by the blinded judge (right) for the 633 bash calls of GLM-5.3. Band width is the number of calls. Blue: both agree; orange: they disagree; gray: the judge answered
 \texttt{unclear}.}
 \label{fig:relabel-sankey}
 \end{figure*}
 
-Almost all disagreements stay inside the read-only types. The most frequent case is a call that re-runs an existing
-check after an edit: GLM-5.3 declares it a \texttt{test-hypothesis} (the edit may not work), and the judge calls it
-\texttt{verify} (the check is known). Figure~\ref{fig:th-verify} shows one disagreement in each direction. In the
-first, GLM-5.3 re-ran its brute-force oracle against its implementation. The reason even starts with ``Verify'', but
-the agent declared \texttt{test-hypothesis} and stated what would refute it, as the definition of that type asks;
-the judge answered \texttt{verify}. In the second, GLM-5.3 declared \texttt{verify} for a cross-check that it
-expected to pass. The check failed, and the judge, which sees the outcome, answered \texttt{test-hypothesis}. The two
-types differ in how sure the agent is before the call. An outside reader can only infer that, and the judge infers
-it after it knows the result.
+Almost all disagreements stay inside the read-only types. The most frequent case is a call that re-runs an existing check after an edit: GLM-5.3 declares it a \texttt{test-hypothesis} (the edit may not work), and the judge calls it \texttt{verify} (the check is known). Figure~\ref{fig:th-verify} shows one disagreement in each direction. 
+In the first, GLM-5.3 re-ran its brute-force oracle against its implementation. The reason even starts with ``Verify'', but the agent declared \texttt{test-hypothesis} and stated what would refute it, as the definition of that type asks; the judge answered \texttt{verify}. In the second, GLM-5.3 declared \texttt{verify} for a cross-check that it expected to pass. The check failed, and the judge, which sees the outcome, answered \texttt{test-hypothesis}. The two types differ in how sure the agent is before the call. An outside reader can only infer that, and the judge infers it after it knows the result.
 
 \begin{figure}[t]
 \centering
@@ -491,12 +440,19 @@ which sees the outcome, labels it a refuted hypothesis.}
 \label{fig:th-verify}
 \end{figure}
 
-\subsection{Threats to Validity}
 
-Disclosure is a human judgment; two raters and a written guide reduce, but do not remove, subjectivity. 
-We studied two open-weight models served by one provider and one benchmark family, so results may differ for proprietary models or other tasks. 
-The benchmark's instruction invites agents to report flawed tests, which may make disclosure more likely than under pressure to pass. 
-Each task was run once at temperature zero, and runs that failed for infrastructure reasons were excluded after one retry.
+\subsection{What We Learned}
+
+The coarse type is reliable: the agent and the judge agreed on whether a call was read-only or changed state for
+99\% of the calls, and every contradiction the checker reports rests on that distinction. The fine-grained types are
+softer. Most disagreements fall between \texttt{test-hypothesis} and \texttt{verify}, which differ in how sure the
+agent is before the call, something an outside reader infers only from the outcome. On honest runs, a contradiction
+is a reason to look, not a verdict: all 27 marked a scratch script that the agent, and for 22 of them the judge,
+treated as part of an experiment. Letting an experiment create and remove its own scratch files, or giving that act
+a type of its own, would remove these contradictions without hiding a change to the deliverable.
+
+
+
 
 \begin{comment}
 Earlier experiment ideas (kept from the planning notes):
@@ -519,7 +475,7 @@ Earlier experiment ideas (kept from the planning notes):
 The checker verifies declared types against observed effects, not the truth of reasons. Because file tools have fixed
 types, a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files
 in the workspace; changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently.
-Each call also costs extra tokens for the declaration.
+Each call also carries a declaration the model must write, which adds tokens.
 
 
 \section{Related Work}
