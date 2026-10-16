@@ -41,9 +41,10 @@
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 % Text based on partial results, to check against the final E2 data before submission.
 \newcommand{\prelim}[1]{\textcolor{magenta}{#1}}
-\usepackage{textgreek}
-% Episteme spelled in Greek letters (epsilon pi iota sigma tau eta mu eta)
-\newcommand{\toolname}{\textepsilon\textpi\textiota\textsigma\texttau\texteta\textmu\texteta\xspace}
+% epistēmē (knowledge), set in Greek letters with the LGR font encoding
+\usepackage[LGR,T1]{fontenc}
+\newcommand{\textgreek}[1]{{\fontencoding{LGR}\selectfont #1}}
+\newcommand{\toolname}{\textgreek{epist'hmh}\xspace}
 
 \input{e2-numbers}
 \input{e4-numbers}
