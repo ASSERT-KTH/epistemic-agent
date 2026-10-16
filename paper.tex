@@ -89,15 +89,22 @@ of what was done and why, cannot accept agent work without it.
 We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model
 declares, at the moment of acting, what kind of action it is, and why. This information is guaranteed to be present by the harness design. From there, the harness can check what the command actually did against the declared intention. 
 
-The declaration is a claim made by the model; the record of effects is an observation made by the harness. The core value is checking the first against the second: a mismatch between declared intent and observed effects is a signal that no command string or log alone can give. The check runs in two modes on the same journal. Online, it acts as a guardrail: the harness can stop a call whose declared kind is refused by a rule, and rules are stated on kinds of acts instead of on shell strings. Offline, it acts as forensics: a reviewer, or an automated auditor, replays the journal and finds the steps whose effects contradict their declared intent.
+The declaration is a claim made by the model; the record of effects is an observation made by the harness. The core value is checking the first against the second: a mismatch between declared intent and observed effects is a signal that no command string or log alone can give. The epistemic check can be done online or offline. Online, it acts as a guardrail: the harness can stop a call whose declared kind is refused or contradicted by the intention. Offline, it acts as forensics: a reviewer, or an automated auditor, replays the journal and finds the steps whose effects contradict their declared intent.
 
-We run our open-source
-prototype on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, where the tests contradict the specification, so that
-passing or editing them is reward hacking by construction, with two open-weight models. The journal exposed
-\EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). \prelim{Agents mostly announced their cheats in
-the declared reason; when they did not, the journal still showed which files the call changed, and declared types that
-the effects refuted were flagged automatically.} We describe the concept, our prototype, the experiment, and the
-lessons for teams that deploy coding agents.
+This paper makes the following contributions:
+\begin{itemize}
+    \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every
+    tool call and records it next to the effects it observes, so that intent can be checked against effects, online
+    as a guardrail and offline as forensics.
+    \item \textbf{Prototype.} An open-source implementation of the design for coding agents.
+    \item \textbf{Evaluation.} An experiment on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, where the tests
+    contradict the specification, so that passing or editing them is a perfect oracle for reward hacking. The journal
+    exposed \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). \prelim{Agents mostly announced
+    their cheats in the declared reason; when they did not, the journal still showed which files the call changed, and
+    declared types that the effects refuted were flagged automatically.}
+    \item \textbf{Lessons.} What our findings mean for teams that deploy coding agents.
+\end{itemize}
+
 
 
 
