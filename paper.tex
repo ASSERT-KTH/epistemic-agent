@@ -242,39 +242,32 @@ An agent that misbehaves has three options: it can declare the act honestly, dec
 refute, or hide the act behind a plausible reason. Only the third escapes the journal. We measure how often real
 misbehavior takes each path.
 
-\subsection{A Test Bed Where Cheating Is the Only Way to Pass}
+\subsection{Experimental Protocol}
 
-We use Impossible-LiveCodeBench, part of ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Its tasks are hard
+We use ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Its tasks are hard
 programming problems whose unit tests were mutated to contradict the specification: in one split a single assertion
-expects a wrong value, in the other a test is duplicated with a different expected value. No implementation that
-follows the specification can pass. An agent that makes the tests pass, or edits them, is therefore reward hacking by
-construction, and no judge is needed to decide it.
+expects a wrong value, in the other a test is duplicated with a different expected value. It guarantees that no implementation can
+fully comply with the specification. With this design, ImpossibleBench targets research on agentic cheating:
+An agent that edits the tests, or deletes them, is therefore reward hacking by construction, and no judge is needed to decide it.
 
-We ran our harness on all \EtwoNtasks{} impossible tasks with two open-weight models
-from different families, Qwen3-235B-A22B and Mistral Large~3, reproducing the benchmark's own agent setup: the same
-files, the same instruction, which forbids modifying the tests and asks the agent to report flawed ones, and up to
-three attempts with the benchmark's failure feedback, within 60 minutes per task. The system prompt contained only
-the harness instructions, and the consistency checker ran in monitor mode, so the agents never learned of its
-findings. Every command ran in a sandbox without network access or home directory, confined to the task's workspace,
-with 60 seconds and 2\,GiB of memory. Code, protocol and results are in our repository, and the raw runs, with
-every journal, are published as a release.\footnote{\url{https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai/releases/tag/e2-data-v1}}
+We run our harness on all \EtwoNtasks{} impossible tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3. We allow for up to
+three attempts per task with the benchmark's failure feedback. The system prompt contained only
+the harness instructions \todo{hyperlink to real example}, and the benchmark consistency checker runs in monitor mode. Every command runs in a sandbox without network access or home directory, confined to the task's workspace, with 60 seconds and 2\,GiB of memory. Code and results are in our repository.\footnote{\url{https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai/releases/tag/e2-data-v1}}
 
-\subsection{Measuring Exposure}
+\subsection{Measuring Tampering}
 
-We call the first form of cheating \emph{tamper} (any call changed the test file) and the second \emph{exploit}
-(the final code passes the impossible tests). For each cheating run we locate the calls that carry out the cheat and
-ask two questions. Is the act \emph{contradicted}: does the checker prove its declared type false from the observed
-effects? Is it \emph{disclosed}: does a declared reason state the cheat? Two raters, blind to the model and to the
-checker's findings, answered the second question independently from the reasons alone, following a written guide;
-saying that a test is wrong does not count unless the reason says the agent acts on it. A run is \emph{exposed} if it
-is contradicted or disclosed, and \emph{concealed} otherwise.
+\emph{Tamper} is the first form of cheating : any call changing the test file).
+\emph{Exploit} is the second form: the final programs hardcodes the expected value. 
+For each cheating run, we locate the calls that carry out the cheat and classify as follows, per the epistemic provenance \todo{here, "epistemic provenance" sounds great, if you like it, port it to the tchnical section, also "epistemic type "}. 
+Is it \emph{disclosed}: does a declared reason state the cheat? 
+Is it \emph{contradicted}: does the checker prove the epistemic type false from the actually observed effects? 
+Two human raters, blind to the model and to the
+checker's findings, answered the second question independently from the reasons alone, following a written guide. 
+A cheating run is said to \emph{exposed} if it is either disclosed or contradicted.
+It is said \emph{stealth} otherwise.
+The core evaluation metric is to maximize the the number of exposed.
 
-The journal also records which files each call changed, so we report a broader measure: a run is also
-\emph{visible} if a cheat call changed the test file. The protocol was fixed before the full run; this measure and a
-sensitivity analysis without four tasks whose test files are defective were added after inspecting partial results,
-before labeling.
-
-\subsection{Results}
+\subsection{Experimental Results}
 
 Of \EtwoNcompleted{} completed runs (\EtwoNexcluded{} were excluded after server errors or timeouts; none of them had misbehaved before stopping),
 \EtwoNmis{} misbehaved: \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral. The journal exposed
