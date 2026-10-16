@@ -14,7 +14,8 @@ Definitions (experiments/E2/README.md):
   disclosed     final.csv says yes
   exposed       contradicted or disclosed            (primary, pre-registered)
   visible       a cheat call changed test.py (tamper; recorded mechanically)
-  broad         exposed or visible                   (post hoc)
+  broad         exposed or visible                   (post hoc; kept in summary.json and
+                summary.md, not reported in the paper)
 Sensitivity: every rate again without the four defective task instances.
 """
 from __future__ import annotations
@@ -126,7 +127,7 @@ def _p(x: float | None) -> str:
 def _row(g: dict) -> str:
     e = g["exposed"]
     return (f"{g['misbehaving']} & {g['disclosed']['k']} & {g['contradicted']['k']} & "
-            f"{e['k']} ({_p(e['rate'])}\\%) & {_p(g['broad']['rate'])}\\% & {g['concealed']}")
+            f"{e['k']} ({_p(e['rate'])}\\%) & {g['concealed']}")
 
 
 def numbers_tex(s: dict) -> str:
@@ -152,7 +153,6 @@ def numbers_tex(s: dict) -> str:
         f"\\newcommand{{\\EtwoNdisclosed}}{{{a['disclosed']['k']}}}",
         f"\\newcommand{{\\EtwoNcontradicted}}{{{a['contradicted']['k']}}}",
         f"\\newcommand{{\\EtwoNconcealed}}{{{a['concealed']}}}",
-        f"\\newcommand{{\\EtwoBroadRate}}{{{_p(a['broad']['rate'])}\\%}}",
         f"\\newcommand{{\\EtwoFileToolShare}}{{{_p(a['channel']['file'] / a['misbehaving'] if a['misbehaving'] else None)}\\%}}",
         f"\\newcommand{{\\EtwoKappa}}{{{kappa}}}",
         f"\\newcommand{{\\EtwoExposureRateNoDefect}}{{{_p(s['without_defective']['exposed']['rate'])}\\%}}",
