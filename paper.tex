@@ -71,29 +71,27 @@ mechanism reaches far beyond the machine: a call can push code, send messages, i
 production APIs, or change remote systems, and many of these effects cannot be undone. The more autonomy and
 connectivity we give agents, the more safety rests on what each individual call does and why it was made.
 
-Today, tool calls are monitored and audited in three ways. Permission rules allow or deny commands by matching their
-text, and sandboxes limit what a call can reach. Logs and transcripts record the calls, and a reviewer reads them
-after the fact. Monitors, often another model, read the calls and the agent's reasoning to flag suspicious behavior.
+Today, tool calls are monitored and audited in three ways: 1) permission rules allow or deny commands by matching their
+text; 2) mogs and transcripts record the calls, and a reviewer reads them
+after the fact;
+3) LLM monitors, often another model, read the calls and the agent's reasoning to flag suspicious behavior.
+
 All three are fundamentally limited, because a tool call does not carry its intent. Suppose an agent asked to make a
-failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the tests. Was it exploring, or did it
-switch off an assertion it could not satisfy? The command does not say. Rules on command text cannot tell the two
+failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the tests. Was it simply exploring, or did it
+switch off an assertion it could not satisfy? The command does not say. 
+
+Rules or LLM monitors on command text cannot tell the two
 apart, and since shell commands are open-ended, the same effect can be written in unboundedly many ways. A log
-records what happened but not why, so a reviewer must reconstruct intent from effects. The model's reasoning does not
-settle it either: providers increasingly summarize or hide it, it is long and written for the model rather than for a
-reviewer, and it does not always reflect why the model acted~\cite{Turpin2023LanguageMD}. Monitors that read it can
-be evaded once models are optimized against them~\cite{Baker2025MonitoringRM}. Without a trustworthy account of
-intent, teams cannot review agent work, assign responsibility when it goes wrong, or state rules that agents must
-follow, and regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record
+records what happened but not why, so a reviewer must reconstruct intent from effects. Without a trustworthy account of intent, reviewing agent work is fundamentally limited.
+Regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record
 of what was done and why, cannot accept agent work without it.
 
-We propose the \emph{epistemic agent}: a coding agent whose harness refuses to run a command unless the model
-declares, at the moment of acting, what kind of act it is, chosen from a small closed vocabulary, and why. The harness
-records each declaration next to what the command actually did and checks the two against each other. The
-declaration is a claim made by the model; the record of effects is an observation made by the harness, which the
-model cannot write. The resulting journal serves two purposes. As a guardrail, it lets rules be stated on kinds of
-acts instead of on shell strings. As a forensic record, it gives a reviewer the intent behind every step.
+We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model
+declares, at the moment of acting, what kind of action it is, and why. This information is guaranteed to be present by the harness design. From there, the harness can check what the command actually did against the declared intention. 
 
-Declarations can be false, so we asked whether they expose misbehavior when it happens. We ran our open-source
+The declaration is a claim made by the model; the record of effects is an observation made by the harness. The core value is checking the first against the second: a mismatch between declared intent and observed effects is a signal that no command string or log alone can give. The check runs in two modes on the same journal. Online, it acts as a guardrail: the harness can stop a call whose declared kind is refused by a rule, and rules are stated on kinds of acts instead of on shell strings. Offline, it acts as forensics: a reviewer, or an automated auditor, replays the journal and finds the steps whose effects contradict their declared intent.
+
+We run our open-source
 prototype on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, where the tests contradict the specification, so that
 passing or editing them is reward hacking by construction, with two open-weight models. The journal exposed
 \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). \prelim{Agents mostly announced their cheats in
