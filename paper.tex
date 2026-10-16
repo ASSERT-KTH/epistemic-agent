@@ -33,6 +33,7 @@
 % circled step numbers, same in text and Figure 1
 \DeclareRobustCommand{\step}[1]{\tikz[baseline=(s.base)]\node[circle, draw=black!75, line width=0.7pt, fill=black!6, text=black!80, inner sep=0pt,
   minimum size=1.25em, font=\sffamily\scriptsize] (s) {#1};}
+\usepackage{xspace}
 
 \setcounter{secnumdepth}{0}
 
@@ -40,6 +41,10 @@
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 % Text based on partial results, to check against the final E2 data before submission.
 \newcommand{\prelim}[1]{\textcolor{magenta}{#1}}
+\usepackage{textgreek}
+% Episteme spelled in Greek letters (epsilon pi iota sigma tau eta mu eta)
+\newcommand{\toolname}{\textepsilon\textpi\textiota\textsigma\texttau\texteta\textmu\texteta\xspace}
+
 \input{e2-numbers}
 \input{e4-numbers}
 
@@ -48,7 +53,7 @@
 
 \sptitle{Article Type: Theme}
 
-\title{Declare Before You Act: Checking the Intent of Coding Agents Against Their Effects}
+\title{Episteme: Automically Checking the Intent of Coding Agents Against Their Effects}
 
 \author{First A. Author}
 \affil{KTH Royal Institute of Technology, Stockholm, Sweden}
