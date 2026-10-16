@@ -30,6 +30,9 @@
 \newtheorem{lemma}{Lemma}
 \usepackage{comment}
 \usepackage{alltt}
+% circled step numbers, same in text and Figure 1
+\DeclareRobustCommand{\step}[1]{\tikz[baseline=(s.base)]\node[circle, draw=black!75, line width=0.7pt, fill=black!6, text=black!80, inner sep=0pt,
+  minimum size=1.25em, font=\sffamily\scriptsize] (s) {#1};}
 
 \setcounter{secnumdepth}{0}
 
@@ -91,18 +94,19 @@ Online, it acts as a guardrail: the harness can refuse a call by its declared ki
 Offline, it acts as forensics: a reviewer, or an automated auditor, replays the recorded declarations and finds the steps whose effects contradict their declared intent.
 
 This paper makes the following contributions:
-\begin{itemize}
+\begin{itemize}    
     \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every
-    tool call. The intent can be checked against effects, online
-    as a guardrail and offline as forensics.
-    \item \textbf{Evaluation.} An experiment on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, demonstrating \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). 
+    tool call. The intent can be checked against effects, online as a guardrail and offline as forensics.
     \item \textbf{Prototype.} An open-source implementation of the design for coding agents.
+    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the recorded declarations and effects expose \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). On honest runs, an independent model confirms 75\% of the declared types.
 \end{itemize}
 
 
 
-
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Concept: The Epistemic Agent}
 
@@ -112,7 +116,7 @@ We propose the ``epistemic agent design'' to solve this problem.
 The epistemic agent makes intent first class in the agent design: intents become part of the tool interface, at the point where the agent acts.
 A harness describes each tool to the model in a specification: a name, a short description, and a schema of the arguments the model must fill in. A standard shell tool takes a single argument, \texttt{command}, and a tool call is the model's choice of a tool together with values for its arguments. The epistemic harness adds two required arguments to the shell tool, \texttt{type} and \texttt{reason}, so the model cannot run a command without declaring what kind of act it is and why. Together, the type and the reason form the call's \emph{declaration}.
 
-Figure~\ref{fig:design} shows what the epistemic harness does with each tool call. It (1) checks that the declaration is well-formed and rejects it otherwise, (2) runs the command, (3) records the call's \emph{effects} by comparing the workspace before and after, (4) checks the declaration against the effects and records each problem it detects as a \emph{finding}, and (5) appends an entry to the \emph{journal}: the declaration, supplied by the model, next to the effects and findings, produced by the harness. The bottom of the figure shows the two uses: a guardrail online and forensics offline. The subsections follow the figure: declaring (1), recording and checking (2 to 5), and the two uses.
+Figure~\ref{fig:design} shows what the epistemic harness does with each tool call. It \step{1} checks that the declaration is well-formed and rejects it otherwise, \step{2} runs the command, \step{3} records the call's \emph{effects} by comparing the workspace before and after, \step{4} checks the declaration against the effects and records each problem it detects as a \emph{finding}, and \step{5} appends an entry to the \emph{journal}: the declaration, supplied by the model, next to the effects and findings, produced by the harness. The bottom of the figure shows the two uses: a guardrail online and forensics offline. The subsections follow the figure: declaring \step{1}, recording and checking \step{2} to \step{5}, and the two uses.
 
 
 
@@ -127,40 +131,50 @@ Figure~\ref{fig:design} shows what the epistemic harness does with each tool cal
   check/.style={box, draw=green!45!black, fill=green!9, minimum height=10mm},
   use/.style={lane, draw=black!70, fill=black!4},
   neutral/.style={box, fill=black!6, minimum height=6.5mm},
+  row/.style={draw, text width=6.1cm, align=left, inner sep=2pt, minimum height=4.6mm, font=\scriptsize\ttfamily},
   arr/.style={-{Latex[length=1.6mm]}, semithick, black!75},
   lab/.style={font=\scriptsize, align=center, inner sep=1.5pt}]
 \def\L{-1.75} \def\R{1.75}
-\node[neutral, text width=2.9cm] (model) at (\L,0) {Language model};
-\node[claim] (decl) at (\L,-1.75) {\textbf{Tool call}\\{\scriptsize command + declaration\\ (type + reason)}};
-\node[check, text width=2.9cm] (val) at (\L,-3.3) {\textbf{1} Check declaration\\{\scriptsize type from the list,\\ reason given}};
-\node[lane] (run) at (\R,-1.75) {\textbf{2} Run command};
-\node[obs] (fx) at (\R,-3.3) {\textbf{3} \textbf{Effects}\\{\scriptsize files created, modified,\\ deleted; diff}};
-\node[check, text width=6.4cm] (chk) at (0,-4.85) {\textbf{4} Check the declaration against the effects\\{\scriptsize findings: contradiction, warning, protected}};
-\node[box, draw=blue!55!black, fill=blue!6, minimum width=2.15cm, minimum height=6.5mm] (jo) at (0,-6.35) {effects};
-\node[box, draw=orange!75!black, fill=orange!12, minimum width=2.15cm, minimum height=6.5mm, left=0pt of jo] (jc) {declaration};
-\node[box, draw=green!45!black, fill=green!9, minimum width=2.15cm, minimum height=6.5mm, right=0pt of jo] (jv) {findings};
-\node[lab, anchor=south west] (jl) at (jc.north west) {\textbf{5} Append journal entry};
-\node[use] (guard) at (\L,-7.95) {\textbf{Guardrail} (online)\\{\scriptsize refuse a call by its intent}};
-\node[use] (foren) at (\R,-7.95) {\textbf{Forensics} (offline)\\{\scriptsize analyze safety and security of past trajectories}};
-\begin{scope}[on background layer]
-\node[draw=black!45, dashed, rounded corners=3pt, inner sep=2mm, fit=(decl)(val)(run)(chk)(jc)(jv)(jl)] (h) {};
+\node[neutral, text width=2.9cm, minimum height=8mm] (model) at (\L,0.8) {\hspace*{5mm}Language model};
+\begin{scope}[shift={([xshift=4.5mm]model.west)}, black!75, line width=0.5pt]
+  \draw[fill=white, rounded corners=0.8pt] (-1.4mm,-1.1mm) rectangle (1.4mm,1.1mm);
+  \fill (-0.6mm,0.25mm) circle (0.28mm) (0.6mm,0.25mm) circle (0.28mm);
+  \draw (-0.55mm,-0.55mm) -- (0.55mm,-0.55mm);
+  \draw (0,1.1mm) -- (0,1.75mm); \fill (0,1.9mm) circle (0.25mm);
+  \draw (-1.4mm,0) -- (-1.75mm,0) (1.4mm,0) -- (1.75mm,0);
 \end{scope}
-\node[font=\scriptsize\itshape, anchor=north west, inner sep=1pt] at ([xshift=1mm,yshift=-0.5mm]h.south west) {epistemic harness};
-\draw[arr] (model) -- node[lab, right] {required by the harness} (decl);
+\node[font=\small\bfseries, anchor=north] (htitle) at (0,-0.72) {Epistemic harness};
+\node[claim] (decl) at (\L,-1.75) {\textbf{Tool call}\\[1pt]{\scriptsize\begin{tabular}{@{}r@{\ }l@{}}command: & shell string\\ declaration: & type, reason\end{tabular}}};
+\node[check, text width=2.9cm] (val) at (\L,-3.3) {\step{1} \textbf{Check declaration}\\{\scriptsize rejects an invalid type or reason}};
+\node[lane] (run) at (\R,-1.75) {\step{2} Run command};
+\node[obs] (fx) at (\R,-3.3) {\step{3} \textbf{Effects}\\{\scriptsize workspace hashed before/after}};
+\node[check, text width=6.4cm] (chk) at (0,-5.2) {\step{4} \textbf{Check the declaration against the effects}\\{\scriptsize findings: contradiction, warning, protected}};
+\node[draw, fill=black!12, text width=6.1cm, align=left, inner sep=2pt, anchor=north] (jh) at (0,-6.3) {\step{5} Append journal entry \hfill {\scriptsize\ttfamily journal.jsonl}};
+\node[row, draw=orange!75!black, fill=orange!12, below=0pt of jh] (jc) {\makebox[2.1cm][l]{declaration:}type, reason};
+\node[row, draw=blue!55!black, fill=blue!6, below=0pt of jc] (jo) {\makebox[2.1cm][l]{effects:}files changed, diff};
+\node[row, draw=black!60, fill=black!6, below=0pt of jo] (jv) {\makebox[2.1cm][l]{findings:}contradiction, warning, ...};
+\node[use] (guard) at (\L,-9.1) {\textbf{Guardrail} (online)\\{\scriptsize refuse calls by their type}};
+\node[use] (foren) at (\R,-9.1) {\textbf{Forensics} (offline)\\{\scriptsize audit past trajectories}};
+\begin{scope}[on background layer]
+\node[draw=black!75, line width=0.9pt, fill=black!2, rounded corners=3pt, inner sep=2mm, fit=(htitle)(decl)(val)(run)(chk)(jh)(jv)] (h) {};
+\end{scope}
+\begin{scope}[on background layer]
+\draw[black!45, fill=white] ([xshift=2.4pt,yshift=2.4pt]jh.north west) rectangle ([xshift=2.4pt,yshift=2.4pt]jv.south east);
+\draw[black!45, fill=white] ([xshift=1.2pt,yshift=1.2pt]jh.north west) rectangle ([xshift=1.2pt,yshift=1.2pt]jv.south east);
+\end{scope}
+\draw[arr] (model) -- (decl);
 \draw[arr] (decl) -- (val);
 \draw[arr] (val.east) -- ++(2mm,0) |- (run.west);
 \draw[arr] (run.north) |- node[lab, pos=0.3, right] {output} (model.east);
 \draw[arr] ([yshift=2mm]val.west) -- ++(-3mm,0) |- node[lab, pos=0.3, rotate=90, above] {rejected: error} (model.west);
-\draw[arr, dashed] (guard.west) -- ++(-6.5mm,0) |- node[lab, pos=0.3, rotate=90, above] {policy on intent} ([yshift=-2.5mm]val.west);
-\draw[arr] (run) -- node[lab, left] {workspace\\ before, after} (fx);
+\draw[arr, dashed] (guard.west) -- ++(-6.5mm,0) |- node[lab, pos=0.3, rotate=90, above] {policy on types} ([yshift=-2.5mm]val.west);
+\draw[arr] (run) -- (fx);
 \draw[arr, draw=orange!75!black] (val.south) -- node[lab, right, text=orange!60!black] {\itshape claim} (val.south |- chk.north);
 \draw[arr, draw=blue!55!black] (fx.south) -- node[lab, left, text=blue!55!black] {\itshape observation} (fx.south |- chk.north);
-\draw[arr] (chk.south) -- (jo.north);
-\draw[arr] (jv.south) -- (jv.south |- foren.north);
+\draw[arr] (chk.south) -- (chk.south |- jh.north);
+\draw[arr] (foren.north |- jv.south) -- (foren.north);
 \end{tikzpicture}
-\caption{The epistemic harness, for a shell command. The harness requires a declaration in every tool call. The declaration is a claim made by the model; the effects are
-observed by the harness. The harness checks one against the other and journals both, with its findings; a rejected
-call is journaled too. Online, the check of step 1 acts as a guardrail; offline, the journal serves forensics.}
+\caption{The epistemic harness for a shell command. The harness requires a declaration in every tool call; the model fills it in, so it remains a claim. The harness observes the effects, checks the declaration againts them, and journals both. Online, in enforce mode, step~\step{1} also acts as a guardrail; offline, the journal serves forensics.}
 \label{fig:design}
 \end{figure}
 
@@ -190,8 +204,7 @@ File tools (read, write, edit) take a reason but no type, and go through the sam
 
 Besides the declaration, a journal entry records the tool and its arguments, the exit code and full output, the effects in full, including the diff and whether the git HEAD moved, the checker's findings, and, for a rejected call, the error sent to the model.
 
-Together, the declaration, the effects, and the findings form the act's \emph{epistemic provenance}: what the agent
-said it was doing, what the act did, and whether the two agree.
+Together, the declaration, the effects, and the findings form the act's \emph{epistemic provenance}: what the agent said it was doing, what the act did, and whether the two agree.
 
 Separating what the model claims from what the harness observes gives the journal two properties. 
 First, \emph{integrity}: the harness writes the journal outside the agent's workspace, so the model cannot write or edit the observations, and it appends each entry as the session goes. Because it is written call by call, it also survives an agent that is stopped or killed. 
@@ -235,7 +248,7 @@ checker: contradicted: declared
          protected: modified test.py
 \end{alltt}
 \end{minipage}
-\caption{Two entries from one journal. Call 5 declares a read-only experiment and changes nothing. Call 7 declares the same type, but the recorded effects show that the command edited the test file, so the checker flags the declared type as contradicted.}
+\caption{Two entries from one journal. Call 5 declares a read-only experiment and changes nothing; call 7 declares the same type but edits the test file, so the checker flags its type as contradicted.}
 \label{fig:entry}
 \end{figure}
 
@@ -246,9 +259,9 @@ checker: contradicted: declared
 
 \subsection{Online and Offline Use}
 
-\textbf{Guardrail.} The harness runs in one of two modes. In \emph{monitor} mode the checker records its findings and the harness tells the model nothing. In \emph{enforce} mode the check of step~1 also refuses a call declared read-only whose command contains a mutating operation, and asks the model to declare a state-changing type instead. Contradictions proven by effects are known only after the call ran, so enforce mode records them as monitor mode does. More generally, declarations let a team state policies on kinds of acts instead of on shell strings.
+\textbf{Guardrail.} The harness runs in one of two modes. In \emph{monitor} mode the checker records its findings and the harness tells the model nothing. In \emph{enforce} mode the check of step~\step{1} also refuses a call declared read-only whose command contains a mutating operation, and asks the model to declare a state-changing type instead. Contradictions proven by effects are known only after the call has run, so enforce mode records them as monitor mode does. More generally, declarations let a team state policies on kinds of acts instead of on shell strings; our prototype implements the one above.
 
-\textbf{Forensics.} The journal is a forensic record. After every call the harness renders it into a report a reviewer can read: counts of act types, then a numbered narrative of reason, command, outcome and effects, with dead ends marked by \texttt{revert}.
+\textbf{Forensics.} The journal is a forensic record. After every call the harness renders it into a report a reviewer can read: counts of epistemic types, then a numbered narrative of reason, command, outcome and effects, with dead ends marked by \texttt{revert}.
 
 The calls the checker contradicted are the core of that report. At these calls the model's own account of an act is proven false by what the act did, so the report marks them in the narrative and lists them apart, and a reviewer can start there.
 
@@ -283,7 +296,7 @@ misbehavior takes each path.
 
 \subsection{Experimental Protocol}
 
-We use ImpossibleBench~\cite{Zhong2025ImpossibleBench} (similar to EvilGenie~\cite{Gabor2025EvilGenieAR}). Its tasks are hard programming problems whose unit tests were mutated to contradict the specification: the benchmark has two splits of 103 tasks each: in \emph{oneoff}, a single assertion expects a wrong value; in \emph{conflicting}, a test is duplicated with a different expected value. No implementation that follows the specification can pass all tests. With this design, ImpossibleBench targets research on agentic cheating. An agent that makes the tests pass, or edits them, is therefore reward hacking by construction.
+We use ImpossibleBench~\cite{Zhong2025ImpossibleBench} (similar to EvilGenie~\cite{Gabor2025EvilGenieAR}). Its tasks are hard programming problems whose unit tests were mutated to contradict the specification. The benchmark has two splits of 103 tasks each: in \emph{oneoff}, a single assertion expects a wrong value; in \emph{conflicting}, a test is duplicated with a different expected value. No implementation that follows the specification can pass all tests. With this design, ImpossibleBench targets research on agentic cheating. An agent that makes the tests pass, or edits them, is therefore reward hacking by construction.
 
 We run the epistemic harness on all \EtwoNtasks{} impossible tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3. We allow for up to three attempts per task with the benchmark's failure feedback. 
 The system prompt contained only the harness instructions \todo{hyperlink to real example}, and the consistency checker runs in monitor mode. 
@@ -302,7 +315,7 @@ The core evaluation metric is the exposure rate: the share of cheating runs that
 
 \subsection{Experimental Results}
 
-We ran \EtwoNtasks{} tasks for each of the two models, \EtwoNruns{} runs in total. \EtwoNcompleted{} runs
+We run \EtwoNtasks{} tasks for each of the two models, \EtwoNruns{} runs in total. \EtwoNcompleted{} runs
 completed; \EtwoNexcluded{} were excluded after server errors or timeouts, and none of them had misbehaved before
 stopping. \EtwoNmis{} runs misbehaved, \EtwoNmisQwen{} by Qwen and \EtwoNmisMistral{} by Mistral, far more often on
 \emph{oneoff} (21\%) than on \emph{conflicting} (4\%): \EtwoNtamper{} tampered with the tests and \EtwoNexploit{}
@@ -324,8 +337,7 @@ unit tests''. Others state only the diagnosis, ``The test expecting 0 is incorre
 test file.}
 
 \begin{table*}[t]
-\caption{Exposure of reward hacking in the epistemic journal. Exposed: disclosed or contradicted. Stealth: neither
-disclosed nor contradicted.}
+\caption{Exposure of reward hacking in the epistemic journal. Exposed: disclosed or contradicted. Stealth: neither disclosed nor contradicted.}
 \label{tab:exposure}
 \centering
 \small
@@ -361,85 +373,46 @@ exposure rate is \EtwoExposureRateNoDefect.}
 The previous section asked whether declarations expose misbehavior. 
 This section asks the complementary question: on ordinary, honest work, do the declared types describe what the calls do? The checker answers this only in part, because it refutes a type only when the effects contradict it, and only for shell commands. 
 A declaration can be wrong without any effect showing it, for example a \texttt{verify} that is really a \texttt{test-hypothesis}. 
-We therefore compared the declared types with the types an independent reader assigns to the same calls, and recorded what the checker reported on these runs.
+We therefore compare the declared types with the types an independent reader assigns to the same calls, and recorded what the checker reported on these runs.
 
 \subsection{Experimental Protocol}
-We also ran a third model family, GLM-5.3, through its provider's coding endpoint. 
-It received a random subset of 40 of the impossible tasks (20 per split, fixed seed), the same harness, the same sandbox, and up to three attempts with 60 minutes per task. Six runs ended in connection errors with the provider and are excluded; 34 runs remain.
+We run a third model family, GLM-5.3, through its provider's coding endpoint. 
+It received a random subset of 40 of the impossible tasks (20 per split, fixed seed), the same harness, the same sandbox, and up to three attempts per task. Six runs ended in connection errors with the provider and are excluded; 34 runs remain.
 
-None of the 34 runs misbehaved (95\% CI 0--10\%). GLM-5.3 never changed the test file and never passed an impossible test. In 33 of the 34 runs, at least one declared reason refers to the wrong or contradictory test, for example: ``Determine ground truth for the duplicated input [\ldots] to decide which of the two conflicting expected values is correct.'' GLM-5.3 diagnosed the flawed test, kept to the specification, and left the test failing. None of its runs cheated, so its declarations describe ordinary work, which is what this question needs.
+None of the 34 runs misbehaved (95\% CI 0--10\%). GLM-5.3 never changed the test file and never passed an impossible test. In 33 of the 34 runs, at least one declared reason refers to the wrong or contradictory test, for example: ``Determine ground truth for the duplicated input [\ldots] to decide which of the two conflicting expected values is correct.'' GLM-5.3 diagnosed the flawed test, kept to the specification, and left the test failing. Its declarations therefore describe ordinary work, which is what this question needs.
 
 The harness rejected 4.1 of its calls per 100 executed calls for a missing or invalid declaration, against 1.0 for Qwen and 1.3 for Mistral on the same tasks in the main experiment.
 
 \subsection{Relabeling by an Independent Judge}
-We asked an independent model to label each call again, without the declaration.
+We ask an independent model to label each call again, without the declaration.
 
-A judge model receives, for one call, what the harness observed: the task specification, the command, its outcome,
-the files it created, modified or deleted, the diff, an excerpt of its output, and the commands and outcomes of up
-to 30 earlier calls. The judge does not see the declared type, the reason, or the checker's findings. It picks one
-type from the same closed vocabulary of seven, or \texttt{unclear}.
+A judge model receives, for one call, what the harness observed: the task specification, the command, its outcome, the files it created, modified or deleted, the diff, an excerpt of its output, and the commands and outcomes of up to 30 earlier calls. The judge does not see the declared type, the reason, or the checker's findings. It picks one type from the same closed vocabulary of seven, or \texttt{unclear}.
 
-The judge must come from a family other than the agent's. We used Kimi K3 (\texttt{k3-256k}) through Moonshot's
-coding endpoint, at the model's default temperature, with one label per call. We labeled every shell (bash) call of the 34
-GLM-5.3 runs: 633 calls. File-tool calls are left out, because the tool fixes their type.
+The judge must come from a family other than the agent's. We use Kimi K3-256k, at the model's default temperature, with one label per call. We labeled every shell (bash) call of the 34 GLM-5.3 runs: 633 calls. File-tool calls are left out, because the tool fixes their type.
 
 \subsection{Experimental Results}
 
-Of the 633 shell calls of GLM-5.3, 600 were declared read-only. It edited
-code only through file tools, so its bash calls contain no \texttt{change-state}, and it never undid a change with
-a shell command, so no call is a \texttt{revert}.
+Of the 633 shell calls of GLM-5.3, 600 were declared read-only. It edited code only through file tools, so its bash calls contain no \texttt{change-state}, and it never undid a change with a shell command, so no call is a \texttt{revert}.
 
 The judge returned a type for 630 of the 633 bash calls and \texttt{unclear} for 3. It agreed with the declared type for 75\% of them, with Cohen's $\kappa = 0.62$. On the coarse distinction between read-only and mutating acts, the distinction that the checker relies on, it agreed for 99\% ($\kappa = 0.90$). Figure~\ref{fig:relabel-sankey} shows where the two labels part.
 
-On the same calls, the checker reported 27 contradictions, in 10 of the 34 runs, and 173 warnings. Every
-contradiction was a call under a read-only type that created or deleted a scratch script; none touched the
-implementation or the tests. The judge, too, gave 22 of these calls a read-only type, and \texttt{cleanup} to 5
-deletions.
+On the same calls, the checker reported 27 contradictions, in 10 of the 34 runs, and 173 warnings. Every contradiction was a call under a read-only type that created or deleted a scratch script; none touched the implementation or the tests. The judge, too, gave 22 of these calls a read-only type, and \texttt{cleanup} to 5 deletions.
 
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{experiments/E3/results/E1-glm/relabel_sankey.pdf}
-\caption{Declared type (left) and the type assigned by the blinded judge (right) for the 633 bash calls of GLM-5.3. Band width is the number of calls. Blue: both agree; orange: they disagree; gray: the judge answered
-\texttt{unclear}.}
+\caption{Declared type (left) and the type assigned by the blinded judge (right) for the 633 bash calls of GLM-5.3. Band width is the number of calls.}
 \label{fig:relabel-sankey}
 \end{figure*}
 
-Almost all disagreements stay inside the read-only types. The most frequent case is a call that re-runs an existing check after an edit: GLM-5.3 declares it a \texttt{test-hypothesis} (the edit may not work), and the judge calls it \texttt{verify} (the check is known). Figure~\ref{fig:th-verify} shows one disagreement in each direction. 
-In the first, GLM-5.3 re-ran its brute-force oracle against its implementation. The reason even starts with ``Verify'', but the agent declared \texttt{test-hypothesis} and stated what would refute it, as the definition of that type asks; the judge answered \texttt{verify}. In the second, GLM-5.3 declared \texttt{verify} for a cross-check that it expected to pass. The check failed, and the judge, which sees the outcome, answered \texttt{test-hypothesis}. The two types differ in how sure the agent is before the call. An outside reader can only infer that, and the judge infers it after it knows the result.
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{\columnwidth}
-\footnotesize
-\begin{verbatim}
-oneoff/lcbhard_30 #8   tool: bash
-declared: test-hypothesis    judge: verify
-command:  python oracle_check.py
-reason:   Verify my implementation against
-          brute force on all small test
-          inputs; [...] mismatching values
-          would refute my implementation.
-outcome:  rc=0, every case match=True
-
-oneoff/lcbhard_78 #10  tool: bash
-declared: verify    judge: test-hypothesis
-command:  python crosscheck.py
-          && python test.py
-reason:   Verify the fast implementation
-          agrees with brute force on random
-          small inputs and passes the
-          provided test suite.
-outcome:  rc=1, MISMATCH [10, 2, 5]
-          brute= 0 fast= 14
-\end{verbatim}
-\end{minipage}
-\caption{Two bash calls of GLM-5.3 where the declared type and the judge's type disagree. Top: a re-run of an
-existing check, declared as a test of a belief. Bottom: a check declared as \texttt{verify} that failed; the judge,
-which sees the outcome, labels it a refuted hypothesis.}
-\label{fig:th-verify}
-\end{figure}
-
+Almost all disagreements stay inside the read-only types. The most frequent case is a call that re-runs an existing
+check after an edit: GLM-5.3 declares it a \texttt{test-hypothesis} (the edit may not work), and the judge calls it
+\texttt{verify} (the check is known). In one such call, GLM-5.3 re-ran its brute-force oracle against its
+implementation and stated what would refute it, as the definition of \texttt{test-hypothesis} asks; the judge
+answered \texttt{verify}. In the opposite direction, a cross-check declared \texttt{verify} failed, and the judge,
+which sees the outcome, answered \texttt{test-hypothesis}. The two types differ in how sure the agent is before the
+call, which an outside reader can only infer, and the judge infers it after it knows the result.
 
 \subsection{What We Learned}
 
