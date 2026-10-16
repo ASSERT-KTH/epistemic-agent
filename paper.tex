@@ -94,15 +94,10 @@ The declaration is a claim made by the model; the record of effects is an observ
 This paper makes the following contributions:
 \begin{itemize}
     \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every
-    tool call and records it next to the effects it observes, so that intent can be checked against effects, online
+    tool call. The intent can be checked against effects, online
     as a guardrail and offline as forensics.
+    \item \textbf{Evaluation.} An experiment on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, demonstrating \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). 
     \item \textbf{Prototype.} An open-source implementation of the design for coding agents.
-    \item \textbf{Evaluation.} An experiment on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, where the tests
-    contradict the specification, so that passing or editing them is a perfect oracle for reward hacking. The journal
-    exposed \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). \prelim{Agents mostly announced
-    their cheats in the declared reason; when they did not, the journal still showed which files the call changed, and
-    declared types that the effects refuted were flagged automatically.}
-    \item \textbf{Lessons.} What our findings mean for teams that deploy coding agents.
 \end{itemize}
 
 
