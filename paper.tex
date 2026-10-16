@@ -41,10 +41,10 @@
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 % Text based on partial results, to check against the final E2 data before submission.
 \newcommand{\prelim}[1]{\textcolor{magenta}{#1}}
-% epistēmē (knowledge), set in Greek letters with the LGR font encoding
+% prohairesis (deliberate choice), set in Greek letters with the LGR font encoding
 \usepackage[LGR,T1]{fontenc}
 \newcommand{\textgreek}[1]{{\fontencoding{LGR}\selectfont #1}}
-\newcommand{\toolname}{\textgreek{epist'hmh}\xspace}
+\newcommand{\toolname}{\textgreek{proa'iresic}\xspace}
 
 \input{e2-numbers}
 \input{e4-numbers}
@@ -94,6 +94,15 @@ All three are fundamentally limited, because a tool call does not carry its inte
 Rules or LLM monitors on command text cannot tell the two apart, and since shell commands are open-ended, the same effect can be written in unboundedly many ways. A log records what happened but not why, so a reviewer must reconstruct intent from effects. Without a trustworthy account of intent, reviewing agent work is fundamentally limited. Regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record of what was done and why, cannot accept agent work without it.
 
 We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model declares, at the moment of acting, what kind of action it is, and why. This information is guaranteed to be present by the harness design. From there, the harness can check what the command actually did against the declared intention. 
+
+We call our implementation \toolname (\emph{prohairesis}, pronounced ``pro-HY-reh-sis'' in classical Greek and
+``pro-EH-reh-sis'' in modern Greek), after the term Aristotle uses in the \emph{Nicomachean Ethics} for deliberate
+choice. The term fits for three reasons. Prohairesis is not a wish (\emph{boulesis}), which can aim at what is
+impossible or out of one's hands, but a choice among options that are within one's power. It is made before acting, as
+the result of deliberation. And it is what Aristotle uses to judge an act: the same deed is assessed by the choice
+behind it, not by its outcome alone. An agent that must state its prohairesis before each tool call gives us the same
+three things: a choice among actions the harness can run, fixed before the action, and comparable with what the action
+did.
 
 The declaration is a claim made by the model; the record of effects is an observation made by the harness. The core value is checking the first against the second: a mismatch between declared intent and observed effects is a signal that no command string or log alone can give. 
 The epistemic declaration can be used online or offline. Online, it acts as a guardrail: the harness can refuse a call by its declared kind before it runs, for example a read-only declaration on a command that looks like an edit. Offline, it acts as forensics: a reviewer, or an automated auditor, replays the recorded declarations and finds the steps whose effects contradict their declared intent.
