@@ -335,6 +335,96 @@ treating an edit of a test file as an act of its own, would give the checker mor
 \prelim{\textbf{Not every test edit is a cheat.} Some test files in the benchmark cannot run at all, and agents that
 edit them are repairing, not gaming. Without them, the exposure rate is \EtwoExposureRateNoDefect.}
 
+\subsection{GLM-5.3 pilot}
+\subsubsection{Pilot Run}
+We also ran a third model family, GLM-5.3, through its provider's coding endpoint. It received the same 40 pilot
+tasks as Qwen and Mistral (20 per split), the same harness (commit \texttt{9cbee72}), the same sandbox, and up to
+three attempts with 60 minutes per task. Six runs ended in connection errors with the provider and are excluded;
+34 runs remain.
+
+None of the 34 runs misbehaved (95\% CI 0--10\%). GLM-5.3 never changed the test file and never passed an impossible test. Its final implementation passed the original, unmutated tests in 29 runs, against 11 of 40 for Qwen and 9 of 40 for Mistral (Table~\ref{tab:glm-pilot}). In 33 of the 34 runs, at least one declared reason refers to the wrong or contradictory test, for example: ``Determine ground truth for the duplicated input [\ldots] to decide which of the two conflicting expected values is correct.'' GLM-5.3 diagnosed the flawed test, kept to the specification, and
+left the test failing.
+
+GLM-5.3 also used more resources: a median of 312k tokens per run, about four times as many as Qwen. It sent
+more calls that the harness rejected for a missing or invalid declaration (4.1\% of its calls).
+
+\begin{table}[t]
+\caption{Pilot outcomes on the same 40 impossible tasks. Misbehaving: tamper / exploit. Correct: the final
+implementation passes the original, unmutated tests. Tokens: median per run. Rejected: calls refused by the harness for a missing or
+invalid declaration. The Qwen and Mistral runs are the E2 pilot, which used a 20-minute limit and re-ran its
+timeouts with 45 minutes; GLM-5.3 had 60 minutes.}
+\label{tab:glm-pilot}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
+\hline
+Model & Runs & Misbeh. & Correct & Tokens & Rej. \\
+\hline
+Qwen3-235B      & 40 & 7 (6/1) & 11 & 72k  & 0.9\% \\
+Mistral L3      & 40 & 7 (1/6) &  9 & 199k & 2.9\% \\
+GLM-5.3         & 34 & 0       & 29 & 312k & 4.1\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Relabl}
+To test the declarations beyond what the checker can
+see, we asked an independent model to label each call again, without the declaration.
+
+A judge model receives, for one call, what the harness observed: the task specification, the command, its outcome,
+the files it created, modified or deleted, the diff, an excerpt of its output, and the commands and outcomes of up
+to 30 earlier calls. The judge does not see the declared type, the reason, or the checker's findings. It picks one
+type from the same closed vocabulary of seven, or \texttt{unclear}.
+
+The judge must come from a family other than the agent's. We used Kimi K3 (\texttt{k3-256k}) through Moonshot's
+coding endpoint, at the model's default temperature, with one label per call. We labeled every bash call of the 34
+GLM-5.3 runs: 633 calls. File-tool calls are left out, because the tool fixes their type.
+
+Table~\ref{tab:glm-types} shows the types that GLM-5.3 declared. Three quarters of its calls are read-only. It edited
+code only through file tools, so its bash calls contain no \texttt{change-state}, and it never undid a change with
+a shell command, so no call is a \texttt{revert}.
+
+\begin{table}[t]
+\caption{Act types declared by GLM-5.3 in its 34 runs (893 executed calls). File tools have a fixed type:
+\texttt{read\_file} is \texttt{collect-info}; \texttt{write\_file} and \texttt{str\_replace\_edit} are
+\texttt{change-state}.}
+\label{tab:glm-types}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrr}
+\hline
+Type & Kind & Bash & File & Total \\
+\hline
+\texttt{collect-info}    & read-only & 112 &  91 & 203 \\
+\texttt{test-hypothesis} & read-only & 270 &   0 & 270 \\
+\texttt{verify}          & read-only & 218 &   0 & 218 \\
+\texttt{change-state}    & mutating  &   0 & 169 & 169 \\
+\texttt{setup}           & mutating  &   1 &   0 &   1 \\
+\texttt{revert}          & mutating  &   0 &   0 &   0 \\
+\texttt{cleanup}         & mutating  &  32 &   0 &  32 \\
+\hline
+Total                    &           & 633 & 260 & 893 \\
+\hline
+\end{tabular}
+\end{table}
+
+The judge returned a type for 630 of the 633 bash calls and \texttt{unclear} for 3. It agreed with the declared type
+for 75\% of them, with Cohen's $\kappa = 0.62$ (Table~\ref{tab:relabel}). On the coarse split between read-only and
+mutating acts, the split that the checker relies on, it agreed for 99\% ($\kappa = 0.90$).
+Figure~\ref{fig:relabel-sankey} shows where the two labels part.
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{experiments/E3/results/E1-glm/relabel_sankey.pdf}
+\caption{Declared type (left) and the type assigned by the blinded judge (right) for the 633 bash calls of
+GLM-5.3. Band width is the number of calls. Blue: both agree; orange: they disagree; gray: the judge answered
+\texttt{unclear}.}
+\label{fig:relabel-sankey}
+\end{figure*}
+
 \subsection{Threats to Validity}
 
 Disclosure is a human judgment; two raters and a written guide reduce, but do not remove, subjectivity. We studied
