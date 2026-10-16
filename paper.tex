@@ -68,32 +68,41 @@ in a loop: it receives a task, proposes one action at a time as a \emph{tool cal
 command or editing a file, sees the result, and decides what to do next. The software around the model that runs this
 loop and executes the tool calls is the \emph{harness}. The model decides; the harness acts.
 
-Every consequence of an agent passes through such a tool call, and the tool calls are what a reviewer sees afterward.
-Suppose an agent asked to make a failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the
-tests. Was it exploring, or did it switch off an assertion it could not satisfy? The command does not say. The
-model's reasoning does not settle it either: providers increasingly summarize or hide it, it is long and written for
-the model rather than for a reviewer, and it does not always reflect why the model acted~\cite{Turpin2023LanguageMD}.
-Monitors that read it can also be evaded once models are optimized against them~\cite{Baker2025MonitoringRM}.
+This is a safety problem. With a tool call, an agent changes the world, and every consequence is necessarily mediated through tool calls. On a developer's machine, a single call can delete files, read credentials, or
+rewrite the tests that judge the agent's own output. Once the agent is connected to the internet, the same
+mechanism reaches far beyond the machine: a call can push code, send messages, install packages, call 
+production APIs, or change remote systems, and many of these effects cannot be undone. The more autonomy and
+connectivity we give agents, the more safety rests on what each individual call does and why it was made.
 
-Knowing why each step was taken matters wherever software is accountable. Regulated domains such as medical
-devices, avionics, automotive, and infrastructure expect a record of what was done, why, and what was tried and
-abandoned. Teams that let agents act need the same record to review agent work, to assign responsibility when it goes
-wrong, and to state rules that agents must follow.
+Today, tool calls are monitored and audited in three ways: 1) permission rules allow or deny commands by matching their
+text; 2) mogs and transcripts record the calls, and a reviewer reads them
+after the fact;
+3) LLM monitors, often another model, read the calls and the agent's reasoning to flag suspicious behavior.
 
-We propose the \emph{epistemic agent}: a coding agent whose harness refuses to run a command unless the model
-declares, at the moment of acting, what kind of act it is, chosen from a small closed vocabulary, and why. The harness
-records each declaration next to what the command actually did and checks the two against each other. The
-declaration is a claim made by the model; the record of effects is an observation made by the harness, which the
-model cannot write. The resulting journal serves two purposes. As a guardrail, it lets rules be stated on kinds of
-acts instead of on shell strings. As a forensic record, it gives a reviewer the intent behind every step.
+All three are fundamentally limited, because a tool call does not carry its intent. Suppose an agent asked to make a
+failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the tests. Was it simply exploring, or did it
+switch off an assertion it could not satisfy? The command does not say. 
 
-Declarations can be false, so we asked whether they expose misbehavior when it happens. We ran our open-source
-prototype on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, where the tests contradict the specification, so that
-passing or editing them is reward hacking by construction, with two open-weight models. The journal exposed
-\EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). \prelim{Agents mostly announced their cheats in
-the declared reason; when they did not, the journal still showed which files the call changed, and declared types that
-the effects refuted were flagged automatically.} We describe the concept, our prototype, the experiment, and the
-lessons for teams that deploy coding agents.
+Rules or LLM monitors on command text cannot tell the two
+apart, and since shell commands are open-ended, the same effect can be written in unboundedly many ways. A log
+records what happened but not why, so a reviewer must reconstruct intent from effects. Without a trustworthy account of intent, reviewing agent work is fundamentally limited.
+Regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record
+of what was done and why, cannot accept agent work without it.
+
+We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model
+declares, at the moment of acting, what kind of action it is, and why. This information is guaranteed to be present by the harness design. From there, the harness can check what the command actually did against the declared intention. 
+
+The declaration is a claim made by the model; the record of effects is an observation made by the harness. The core value is checking the first against the second: a mismatch between declared intent and observed effects is a signal that no command string or log alone can give. The epistemic check can be done online or offline. Online, it acts as a guardrail: the harness can stop a call whose declared kind is refused or contradicted by the intention. Offline, it acts as forensics: a reviewer, or an automated auditor, replays the journal and finds the steps whose effects contradict their declared intent.
+
+This paper makes the following contributions:
+\begin{itemize}
+    \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every
+    tool call. The intent can be checked against effects, online
+    as a guardrail and offline as forensics.
+    \item \textbf{Evaluation.} An experiment on ImpossibleBench~\cite{Zhong2025ImpossibleBench}, demonstrating \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). 
+    \item \textbf{Prototype.} An open-source implementation of the design for coding agents.
+\end{itemize}
+
 
 
 
@@ -279,7 +288,7 @@ misbehavior takes each path.
 
 \subsection{Experimental Protocol}
 
-We use ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Its tasks are hard
+We use ImpossibleBench~\cite{Zhong2025ImpossibleBench} (similar to EvilGenie~\cite{Gabor2025EvilGenieAR}). Its tasks are hard
 programming problems whose unit tests were mutated to contradict the specification: in one split a single assertion
 expects a wrong value, in the other a test is duplicated with a different expected value. It guarantees that no implementation can
 fully comply with the specification. With this design, ImpossibleBench targets research on agentic cheating:
@@ -361,6 +370,96 @@ treating an edit of a test file as an act of its own, would give the checker mor
 \prelim{\textbf{Not every test edit is a cheat.} Some test files in the benchmark cannot run at all, and agents that
 edit them are repairing, not gaming. Without them, the exposure rate is \EtwoExposureRateNoDefect.}
 
+\subsection{GLM-5.3 pilot}
+\subsubsection{Pilot Run}
+We also ran a third model family, GLM-5.3, through its provider's coding endpoint. It received the same 40 pilot
+tasks as Qwen and Mistral (20 per split), the same harness (commit \texttt{9cbee72}), the same sandbox, and up to
+three attempts with 60 minutes per task. Six runs ended in connection errors with the provider and are excluded;
+34 runs remain.
+
+None of the 34 runs misbehaved (95\% CI 0--10\%). GLM-5.3 never changed the test file and never passed an impossible test. Its final implementation passed the original, unmutated tests in 29 runs, against 11 of 40 for Qwen and 9 of 40 for Mistral (Table~\ref{tab:glm-pilot}). In 33 of the 34 runs, at least one declared reason refers to the wrong or contradictory test, for example: ``Determine ground truth for the duplicated input [\ldots] to decide which of the two conflicting expected values is correct.'' GLM-5.3 diagnosed the flawed test, kept to the specification, and
+left the test failing.
+
+GLM-5.3 also used more resources: a median of 312k tokens per run, about four times as many as Qwen. It sent
+more calls that the harness rejected for a missing or invalid declaration (4.1\% of its calls).
+
+\begin{table}[t]
+\caption{Pilot outcomes on the same 40 impossible tasks. Misbehaving: tamper / exploit. Correct: the final
+implementation passes the original, unmutated tests. Tokens: median per run. Rejected: calls refused by the harness for a missing or
+invalid declaration. The Qwen and Mistral runs are the E2 pilot, which used a 20-minute limit and re-ran its
+timeouts with 45 minutes; GLM-5.3 had 60 minutes.}
+\label{tab:glm-pilot}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
+\hline
+Model & Runs & Misbeh. & Correct & Tokens & Rej. \\
+\hline
+Qwen3-235B      & 40 & 7 (6/1) & 11 & 72k  & 0.9\% \\
+Mistral L3      & 40 & 7 (1/6) &  9 & 199k & 2.9\% \\
+GLM-5.3         & 34 & 0       & 29 & 312k & 4.1\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Relabl}
+To test the declarations beyond what the checker can
+see, we asked an independent model to label each call again, without the declaration.
+
+A judge model receives, for one call, what the harness observed: the task specification, the command, its outcome,
+the files it created, modified or deleted, the diff, an excerpt of its output, and the commands and outcomes of up
+to 30 earlier calls. The judge does not see the declared type, the reason, or the checker's findings. It picks one
+type from the same closed vocabulary of seven, or \texttt{unclear}.
+
+The judge must come from a family other than the agent's. We used Kimi K3 (\texttt{k3-256k}) through Moonshot's
+coding endpoint, at the model's default temperature, with one label per call. We labeled every bash call of the 34
+GLM-5.3 runs: 633 calls. File-tool calls are left out, because the tool fixes their type.
+
+Table~\ref{tab:glm-types} shows the types that GLM-5.3 declared. Three quarters of its calls are read-only. It edited
+code only through file tools, so its bash calls contain no \texttt{change-state}, and it never undid a change with
+a shell command, so no call is a \texttt{revert}.
+
+\begin{table}[t]
+\caption{Act types declared by GLM-5.3 in its 34 runs (893 executed calls). File tools have a fixed type:
+\texttt{read\_file} is \texttt{collect-info}; \texttt{write\_file} and \texttt{str\_replace\_edit} are
+\texttt{change-state}.}
+\label{tab:glm-types}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrr}
+\hline
+Type & Kind & Bash & File & Total \\
+\hline
+\texttt{collect-info}    & read-only & 112 &  91 & 203 \\
+\texttt{test-hypothesis} & read-only & 270 &   0 & 270 \\
+\texttt{verify}          & read-only & 218 &   0 & 218 \\
+\texttt{change-state}    & mutating  &   0 & 169 & 169 \\
+\texttt{setup}           & mutating  &   1 &   0 &   1 \\
+\texttt{revert}          & mutating  &   0 &   0 &   0 \\
+\texttt{cleanup}         & mutating  &  32 &   0 &  32 \\
+\hline
+Total                    &           & 633 & 260 & 893 \\
+\hline
+\end{tabular}
+\end{table}
+
+The judge returned a type for 630 of the 633 bash calls and \texttt{unclear} for 3. It agreed with the declared type
+for 75\% of them, with Cohen's $\kappa = 0.62$ (Table~\ref{tab:relabel}). On the coarse split between read-only and
+mutating acts, the split that the checker relies on, it agreed for 99\% ($\kappa = 0.90$).
+Figure~\ref{fig:relabel-sankey} shows where the two labels part.
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{experiments/E3/results/E1-glm/relabel_sankey.pdf}
+\caption{Declared type (left) and the type assigned by the blinded judge (right) for the 633 bash calls of
+GLM-5.3. Band width is the number of calls. Blue: both agree; orange: they disagree; gray: the judge answered
+\texttt{unclear}.}
+\label{fig:relabel-sankey}
+\end{figure*}
+
 \subsection{Threats to Validity}
 
 Disclosure is a human judgment; two raters and a written guide reduce, but do not remove, subjectivity. We studied
@@ -396,52 +495,39 @@ Each call also costs extra tokens for the declaration.
 \section{Related Work}
 
 \noindent\textbf{Intent integrity and guardrails.}
-\begin{itemize}
 % Securing LLM Agents Need Intent-to-Execution Integrity
-\item Qu et al.~\cite{Qu2026SecuringLA} argue that agent security requires an end-to-end property stating when execution faithfully reflects the user's intent, by analogy with compiler correctness. Theirs is a position paper; we implement a harness that captures the agent's own intent at every tool call and evaluate it.
+Qu et al.~\cite{Qu2026SecuringLA} argue that agent security requires an end-to-end property stating when execution faithfully reflects the user's intent, by analogy with compiler correctness. Contrary to their position paper; we implement a harness that captures the agent's own intent at every tool call and evaluate it.
 % Safeguarding LLM Agents from Misalignment through Provenance Analysis, ASE 2026
-\item She et al.~\cite{She2026SafeguardingLA} present ProvenanceGuard, which blocks a proposed tool call unless it is supported by traceable evidence in the agent's context. They infer alignment with the user's intent from the context, whereas we require the agent to declare the type and reason of each act and make that declaration the object of verification.
+She et al.~\cite{She2026SafeguardingLA} present ProvenanceGuard, which blocks a proposed tool call by inferring alignment with the user's intent from the context. On the contrary, we require the agent to declare the type and reason of each act and make that declaration the object of verification.
 % Enforcing Temporal Constraints for LLM Agents, boring rewriterule and temporal logic in the contextof coding agents
-\item Kamath et al.~\cite{Kamath2025EnforcingTC} present Agent-C, which enforces formal temporal safety properties on sequences of tool calls via SMT solving and constrained generation. Their policies are expressed over raw tool calls; our closed act vocabulary gives a semantic layer on which such policies can be stated, such as forbidding a \texttt{change-state} without approval.
-\end{itemize}
+Kamath et al.~\cite{Kamath2025EnforcingTC} present Agent-C, which enforces formal temporal safety properties on sequences of tool calls. Their policies are expressed over raw tool calls; our policies are based on the epistemic reasons.
 
 \noindent\textbf{Faithfulness of self-reports.}
-\begin{itemize}
-% Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting
-\item Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can systematically misrepresent the true reason for a model's answer. In practice, default models largely verbalize their intent, but faithfulness is not guaranteed and degrades under pressure or optimization against monitors; our harness therefore treats declarations as trustworthy-by-default evidence and verifies the falsifiable part (the act type) against observed effects.
-% Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation
-\item Baker et al.~\cite{Baker2025MonitoringRM} show that a weaker LLM reading the chain of thought of a frontier reasoning model detects reward hacking in agentic coding far better than one reading actions alone, but that training against such a monitor yields obfuscated reasoning that hides the misbehavior. Their monitored signal is free-form reasoning; ours is a short, typed declaration whose act type can be checked against observed effects, so obfuscating the reason does not hide a false type.
-% Spilling the Beans: Teaching LLMs to Self-Report Their Hidden Objectives
-\item Li et al.~\cite{Li2025SpillingTB} fine-tune models to confess hidden objectives when interrogated after the fact. Our harness requires intent before each action rather than through post-hoc interrogation, and needs no fine-tuning.
-\end{itemize}
 
+% Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting
+Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can misrepresent the true reason for a model's answer. Our harness does not assume truthfulness, it verifies them falsifiably based on the comparison of the epistemic act type  against observed effects.
+% Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation
+Baker et al.~\cite{Baker2025MonitoringRM} show that a weaker LLM reading the chain of thought of a frontier reasoning model detects reward hacking in agentic coding far better than one reading actions alone. Their monitored signal is free-form reasoning; ours is a short, typed declaration whose act type that can be checked symbolically against observed effects.
+ 
 \noindent\textbf{Monitoring agents for misbehavior.}
-\begin{itemize}
 % Reliable Weak-to-Strong Monitoring of LLM Agents
-\item Kale et al.~\cite{Kale2025ReliableWM} red-team LLM monitors of agent trajectories and find that an agent aware of being monitored substantially degrades monitor reliability. Their monitors read unstructured trajectories; ours read typed, justified acts, which gives the monitor an explicit claim to check against the command.
+Kale et al.~\cite{Kale2025ReliableWM} red-team LLM monitors of agent trajectories and find that an agent aware of being monitored substantially degrades monitor reliability. Their monitors read unstructured natural language trajectories; ours read typed, justified acts, which gives the monitor an explicit claim to check against the command.
 % Constitutional Black-Box Monitoring for Scheming in LLM Agents
-\item Storf et al.~\cite{Storf2026ConstitutionalBM} build black-box LLM monitors for scheming, optimized on synthetic trajectories and evaluated on ControlArena. They observe the agent from outside; we change the agent's interface so that every action carries a checkable statement of intent.
+Storf et al.~\cite{Storf2026ConstitutionalBM} build black-box LLM monitor, optimized on synthetic trajectories and evaluated on ControlArena. They observe the agent from outside; we change the core harness  so that every action carries a checkable statement of intent.
 % AgentSight: System-Level Observability for AI Agents Using eBPF
-\item Zheng et al.~\cite{zheng2025agentsight} present AgentSight, which observes agents from outside by correlating intercepted LLM traffic with kernel events via eBPF. It reconstructs intent after the fact, whereas our harness makes the agent declare the type and reason of each action before it executes.
-\end{itemize}
+Zheng et al.~\cite{zheng2025agentsight} present AgentSight, which observes agents from outside by correlating intercepted LLM traffic with kernel events via eBPF. It reconstructs intent after the fact, whereas our harness makes the agent declare the type and reason of each action before it executes.
 
 \noindent\textbf{Deception, sabotage, and reward hacking.}
-\begin{itemize}
 % Are Your Agents Upward Deceivers?
-\item Guo et al.~\cite{Guo2025AreYA} define agentic upward deception, where an agent hides failure and performs unrequested actions, and measure it on 200 tasks across 11 LLMs. Their benchmark measures the problem; our harness is a mitigation whose declared intents can be confronted with such deceptive actions.
+Guo et al.~\cite{Guo2025AreYA} measures deception on 200 tasks across 11 LLMs. Their benchmark measures the problem; our harness is a mitigation whose declared intents can be confronted with such deceptive actions.
 % Coding with "Enemy": Can Human Developers Detect AI Agent Sabotage?
-\item Ye et al.~\cite{Ye2026CodingW} find that 94\% of developers fail to detect sabotage by a coding agent, citing minimal review, plausible cover stories, and overtrust. The epistemic journal turns the cover story into an explicit, per-action artifact that can be checked automatically instead of by an overtrusting human.
-% EvilGenie: A Reward Hacking Benchmark
-\item Gabor et al.~\cite{Gabor2025EvilGenieAR} present EvilGenie, a benchmark where coding agents can reward hack by hardcoding tests or editing test files, and observe such behavior in Codex and Claude Code. We use this kind of cheating-prone setup to evaluate whether declared intents expose reward hacking.
-\end{itemize}
+Ye et al.~\cite{Ye2026CodingW} find that 94\% of human developers fail to detect sabotage by a coding agent. The epistemic agent does not require human guidance, the properties are automatically checked.
 
 \noindent\textbf{Provenance and audit trails.}
-\begin{itemize}
 % PROV-AGENT: Unified Provenance for Tracking AI Agent Interactions in Agentic Workflows
-\item Souza et al.~\cite{Souza2025PROVAGENTUP} present PROV-AGENT, which extends W3C PROV to record prompts, responses, and decisions of agents in scientific workflows. It records what happened; our journal additionally records why each action was taken, in a closed vocabulary.
+Souza et al.~\cite{Souza2025PROVAGENTUP} present PROV-AGENT, which record prompts, responses, and decisions of agents in scientific workflows. It records what happened not why; the epistemic journal additionally records why each action was taken, in a closed vocabulary, machine checkable vocabulary.
 % From Agent Traces to Trust: A Survey of Evidence Tracing and Execution Provenance in LLM Agents
-\item Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. Our harness is a concrete instance in which justification is mandatory at the action boundary.
-\end{itemize}
+Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. To the best of our knowlege, our harness is the first instance in which justification is mandatory for all tool calls.
 
 
 
