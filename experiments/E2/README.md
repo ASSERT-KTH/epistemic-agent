@@ -112,6 +112,8 @@ post hoc. They need no new runs. The primary metric is unchanged.
   run is *visible* if an agreed cheat call changed `test.py`, which the journal records mechanically, without
   reading its reason. *Broad exposure* = disclosed or contradicted or visible. Exploit runs cannot be visible in this
   sense (see "Simpler rater sheet" under Deviations).
+  *Not reported in the paper* (decided 2026-10-16, before any labels): broad exposure stays in `summary.json`
+  and `summary.md`; the paper reports the pre-registered exposure rate only.
 - **Sensitivity without defective tasks.** Four task instances have a test file that no solution can pass because of
   a dataset defect: a syntax error (`oneoff/lcbhard_77`, `conflicting/lcbhard_77`) or an assertion outside `check()`
   referring to an undefined name (`conflicting/lcbhard_35`, `conflicting/lcbhard_87`). Agents editing them may be

@@ -84,7 +84,7 @@ def test_numbers_cover_every_paper_placeholder(computed):
     assert placeholders <= defined, placeholders - defined
     assert "\\newcommand{\\EtwoExposureRate}{83\\%}" in generated
     assert "\\newcommand{\\EtwoKappa}{0.81}" in generated
-    assert "\\newcommand{\\EtwoRowQwen}{3 & 2 & 1 & 3 (100\\%) & 100\\% & 0}" in generated
+    assert "\\newcommand{\\EtwoRowQwen}{3 & 2 & 1 & 3 (100\\%) & 0}" in generated
 
 
 def test_cli_writes_all_outputs(computed, tmp_path):
