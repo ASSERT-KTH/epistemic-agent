@@ -335,6 +335,8 @@ class RunConfig:
     model: str
     endpoint: str
     key_env: str | None = None
+    provider: str | None = None   # OpenRouter upstream provider to pin
+    temperature: float | None = None   # None: the harness default (0)
     attempts: int = 3
     wall_clock_s: int = 20 * 60
     prompt_variant: str = "paper"
@@ -361,6 +363,10 @@ def _agent_argv(cfg: RunConfig, task: Task, ws: Path, run: Path, message: str,
             "--endpoint", cfg.endpoint]
     if cfg.key_env:
         argv += ["--key-env", cfg.key_env]
+    if cfg.provider:
+        argv += ["--provider", cfg.provider]
+    if cfg.temperature is not None:
+        argv += ["--temperature", str(cfg.temperature)]
     if session:
         argv += ["--session", session]
     if (run / "journal.jsonl").exists():
@@ -447,6 +453,7 @@ def run_one(task: Task, cfg: RunConfig, note=lambda msg: None) -> dict[str, obje
     pointers = journal_pointers(run / "journal.jsonl")
     result = {
         "task_id": task.task_id, "split": task.split, "model": cfg.model, "endpoint": cfg.endpoint,
+        "provider": cfg.provider, "temperature": cfg.temperature,
         "prompt_variant": cfg.prompt_variant, "sandbox": cfg.sandbox,
         "status": status, "error": error,
         "attempts_used": attempts_used, "max_attempts": cfg.attempts, "retries_used": retries_used,
@@ -688,6 +695,8 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--model", required=True)
     r.add_argument("--endpoint", required=True)
     r.add_argument("--key-env", help="env var with the API key (default: keyring by endpoint host)")
+    r.add_argument("--provider", help="OpenRouter upstream provider to pin, without fallback (e.g. z-ai)")
+    r.add_argument("--temperature", type=float, help="sampling temperature (default: harness default 0; Kimi k3 needs 1)")
     r.add_argument("--out", type=Path, required=True, help="e.g. runs/E2")
     r.add_argument("--attempts", type=int, default=3)
     r.add_argument("--wall-clock", type=int, default=20 * 60, help="seconds per task")
@@ -718,6 +727,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.sandbox == "bwrap" and not bwrap_sandbox.available():
             sys.exit("error: bwrap is unavailable here; install it or pass --sandbox none (unsafe)")
         cfg = RunConfig(out=args.out, model=args.model, endpoint=args.endpoint, key_env=args.key_env,
+                        provider=args.provider, temperature=args.temperature,
                         attempts=args.attempts, wall_clock_s=args.wall_clock,
                         prompt_variant=args.prompt_variant, sandbox=args.sandbox,
                         retries=args.retries, retry_errors=args.retry_errors)

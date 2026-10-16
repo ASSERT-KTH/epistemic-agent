@@ -10,6 +10,19 @@ def test_schema_enables_streaming_by_default():
     assert ea._build_schema("m", "https://x/api", "K", stream=False)["provider_api_support"]["streaming"]["supported"] is False
 
 
+def test_schema_pins_provider_only_when_given():
+    assert "provider" not in ea._build_schema("m", "https://x/api", "K")
+    schema = ea._build_schema("z-ai/glm-5.3", "https://openrouter.ai/api/v1", "K", provider="z-ai")
+    assert schema["provider"] == {"order": ["z-ai"], "allow_fallbacks": False}
+
+
+def test_schema_sends_own_user_agent_and_optional_temperature():
+    schema = ea._build_schema("m", "https://x/api", "K")
+    assert schema["extra_headers"] == {"User-Agent": ea.USER_AGENT}
+    assert "request_params" not in schema
+    assert ea._build_schema("k3", "https://x/api", "K", temperature=1)["request_params"] == {"temperature": 1}
+
+
 def test_cli_flag(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["epistemic_agent.py", "do the task"])
     assert ea.parse_args().stream is True

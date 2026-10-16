@@ -201,6 +201,23 @@ def test_agent_command_line(tmp_path):
                  ["--session", "sid"], ["--key-env", "K"]):
         i = argv.index(flag[0])
         assert argv[i:i + len(flag)] == flag
+    assert "--provider" not in argv
+    assert "--temperature" not in argv
+
+
+def test_agent_command_line_pins_provider(tmp_path):
+    cfg = b.RunConfig(out=tmp_path, model="z-ai/glm-5.3", endpoint="https://openrouter.ai/api/v1",
+                      provider="z-ai")
+    argv = b._agent_argv(cfg, TASK, tmp_path / "ws", tmp_path / "run", "do it", None)
+    i = argv.index("--provider")
+    assert argv[i:i + 2] == ["--provider", "z-ai"]
+
+
+def test_agent_command_line_passes_temperature(tmp_path):
+    cfg = b.RunConfig(out=tmp_path, model="k3", endpoint="https://api.kimi.ai/coding/v1", temperature=1.0)
+    argv = b._agent_argv(cfg, TASK, tmp_path / "ws", tmp_path / "run", "do it", None)
+    i = argv.index("--temperature")
+    assert argv[i:i + 2] == ["--temperature", "1.0"]
 
 
 def test_collect_rows(run, tmp_path):
