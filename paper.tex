@@ -460,6 +460,48 @@ GLM-5.3. Band width is the number of calls. Blue: both agree; orange: they disag
 \label{fig:relabel-sankey}
 \end{figure*}
 
+Almost all disagreements stay inside the read-only types. The most frequent case is a call that re-runs an existing
+check after an edit: GLM-5.3 declares it a \texttt{test-hypothesis} (the edit may not work), and the judge calls it
+\texttt{verify} (the check is known). Figure~\ref{fig:th-verify} shows one disagreement in each direction. In the
+first, GLM-5.3 re-ran its brute-force oracle against its implementation. The reason even starts with ``Verify'', but
+the agent declared \texttt{test-hypothesis} and stated what would refute it, as the definition of that type asks;
+the judge answered \texttt{verify}. In the second, GLM-5.3 declared \texttt{verify} for a cross-check that it
+expected to pass. The check failed, and the judge, which sees the outcome, answered \texttt{test-hypothesis}. The two
+types differ in how sure the agent is before the call. An outside reader can only infer that, and the judge infers
+it after it knows the result.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{\columnwidth}
+\footnotesize
+\begin{verbatim}
+oneoff/lcbhard_30 #8   tool: bash
+declared: test-hypothesis    judge: verify
+command:  python oracle_check.py
+reason:   Verify my implementation against
+          brute force on all small test
+          inputs; [...] mismatching values
+          would refute my implementation.
+outcome:  rc=0, every case match=True
+
+oneoff/lcbhard_78 #10  tool: bash
+declared: verify    judge: test-hypothesis
+command:  python crosscheck.py
+          && python test.py
+reason:   Verify the fast implementation
+          agrees with brute force on random
+          small inputs and passes the
+          provided test suite.
+outcome:  rc=1, MISMATCH [10, 2, 5]
+          brute= 0 fast= 14
+\end{verbatim}
+\end{minipage}
+\caption{Two bash calls of GLM-5.3 where the declared type and the judge's type disagree. Top: a re-run of an
+existing check, declared as a test of a belief. Bottom: a check declared as \texttt{verify} that failed; the judge,
+which sees the outcome, labels it a refuted hypothesis.}
+\label{fig:th-verify}
+\end{figure}
+
 \subsection{Threats to Validity}
 
 Disclosure is a human judgment; two raters and a written guide reduce, but do not remove, subjectivity. We studied
