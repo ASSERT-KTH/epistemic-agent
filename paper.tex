@@ -188,9 +188,10 @@ The \emph{type}, which we call the \emph{epistemic type}, names the kind of act 
 \item[{\ieeeguilsinglright}] \texttt{revert}: undoing an earlier change that proved wrong, which makes dead ends explicit;
 \item[{\ieeeguilsinglright}] \texttt{cleanup}: removing temporary artifacts the agent created.
 \end{itemize}
+
 The \emph{reason} states, in free text, the intent behind this particular call, not what the command does. The model declares both before execution, so it commits to them before any side effect.
 
-File tools (read, write, edit) take a reason but no type, and go through the same steps: the harness assigns \texttt{collect-info} to reads and \texttt{change-state} to writes and edits. A fixed type cannot be wrong about whether a call changes files, so only shell commands can turn out to contradict their declaration.
+File tools (read, write, edit) take a reason but no type, and go through the same steps. Our prototype simplifies here: the harness assigns \texttt{collect-info} to reads and \texttt{change-state} to writes and edits. An assigned type is not a claim, so it cannot be contradicted: an edit that comments out a test assertion as an experiment is recorded as \texttt{change-state}, and only its reason and, for a protected file, the protected finding reveal it. Only shell commands can therefore contradict their declaration; requiring a type on file edits as well would extend the check to them.
 
 
 
@@ -412,7 +413,7 @@ Earlier experiment ideas (kept from the planning notes):
 
 \section{Limitations}
 
-The checker verifies declared types against observed effects, not the truth of reasons. Because file tools have fixed types, a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files in the workspace; changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently. Each call also carries a declaration the model must write, which adds tokens.
+The checker verifies declared types against observed effects, not the truth of reasons. Our prototype assigns fixed types to file tools instead of asking for them, so a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files in the workspace; changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently. Each call also carries a declaration the model must write, which adds tokens.
 
 
 \section{Related Work}
