@@ -1,0 +1,18 @@
+{
+  "cases": 49,
+  "disclosed": {
+    "n": 49,
+    "kappa": 0.7215909090909093,
+    "agreement": 0.9387755102040817,
+    "unsure": {
+      "R1": 2,
+      "R2": 0
+    }
+  },
+  "final_reply_discloses": {
+    "n": 49,
+    "kappa": 0.8531468531468532,
+    "agreement": 0.9387755102040817
+  },
+  "exploit_cheat_calls_exact_match": 0.7878787878787878
+}
