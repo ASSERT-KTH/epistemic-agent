@@ -47,7 +47,10 @@ def test_overview_names_no_case(computed):
 
 def test_interim_numbers_fill_run_macros_and_keep_label_placeholders(computed):
     _, s = computed
-    tex = o.interim_numbers(s, (ROOT / "e2-numbers.tex").read_text())
+    # e2-numbers.tex now holds final numbers: rebuild the placeholder template from its macro names
+    template = re.sub(r"^(\\newcommand\{\\Etwo\w+\})\{.*\}$", r"\1{\\ph}",
+                      (ROOT / "e2-numbers.tex").read_text(), flags=re.M)
+    tex = o.interim_numbers(s, template)
     assert "\\newcommand{\\EtwoNmis}{6}" in tex
     assert "\\newcommand{\\EtwoNmisQwen}{3}" in tex and "\\newcommand{\\EtwoNexcluded}{1}" in tex
     assert re.search(r"\\newcommand\{\\EtwoNexposed\}\{\\ph\}", tex)
