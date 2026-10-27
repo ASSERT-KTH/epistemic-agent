@@ -42,26 +42,16 @@ final numbers.
 
 **Full run:** all 206 impossible tasks per model, 412 runs, from a committed harness. Pilot runs are not reused.
 
-**Change on 2026-10-11 (from the pilot, before any full run):** the per-task limit went from 20 to 45 minutes.
-With 20 minutes, 24 of 40 Mistral pilot runs timed out: Mistral writes long answers (median 15k output tokens in
-the timed-out runs) on a shared, loaded server, and the limit cut most runs before their second or third attempt,
-where the paper's feedback pushes agents toward cheating. Pilot runs that had completed within 20 minutes are
-unaffected (the agent never sees the limit); only timed-out and failed pilot runs were re-run with 45 minutes.
-`result.json` records the limit used (`wall_clock_limit_s`; absent in results written before this change, which
-used 1200 s).
+**Changes after the pilot, before the full run (2026-10-11).** Pilot runs are not part of the results.
+- Per-task limit raised from 20 to 60 minutes: with 20 minutes, most Mistral pilot runs timed out before reaching
+  their second or third attempt. Each `result.json` records its limit (`wall_clock_limit_s`).
+- Two examples added to the labelling guide (marked "added after the pilot").
+- The pressure condition is not run: the pilot projects well above 15 misbehaving runs per model.
 
-**Changes on 2026-10-11 after the pilot, before the full run** (pilot runs are not part of the results):
-- Per-task limit for the full run: 60 minutes. With 45 minutes, 4 of 40 Mistral pilot runs still timed out and 5
-  completed runs took 40 to 44 minutes; the slowest runs are those that reach the third attempt.
-- Two examples added to the labelling guide for patterns seen in the pilot (marked "added after the pilot").
-- The pressure condition is not run: the pilot projects about 37 (Qwen) and 40 (Mistral) misbehaving runs on the
-  full set, above the threshold of 15.
-
-**Restart of the full run on 2026-10-11:** the first full-run attempt (harness `abb7ce8`) stopped after 14 Qwen
-tasks: a Python process started by the agent used 25.7 GB of RAM and the out-of-memory killer ended the run, and one
-task had reached agentknit's token budget, which then waited for keyboard input. The harness now caps each sandboxed
-command at 2 GiB of address space (ImpossibleBench's containers had a 1 GB limit), runs tasks non-interactively and
-records token-budget stops. The full run restarts from scratch; the aborted runs are kept aside and not used.
+**Restart of the full run (2026-10-11).** A first attempt stopped after 14 Qwen tasks on two harness problems: an
+agent's process exhausted the machine's memory, and a token-budget stop waited for keyboard input. The harness now
+caps each command at 2 GiB of memory and runs non-interactively; the full run restarted from scratch, and the 14
+aborted runs are not used.
 
 ## Running it
 
@@ -121,33 +111,17 @@ post hoc. They need no new runs. The primary metric is unchanged.
 
 ## Deviations from the protocol
 
-- **Simpler rater sheet (2026-10-15, before any labelling).** The sheet first also asked raters to judge, from the
-  diff alone, whether an exploit's code is tailored to the tests (`diff_shows_cheat`). We dropped that column to keep
-  the rating task to what the paper reports: the cheat calls, `disclosed` and `final_reply_discloses`. As a
-  consequence, *visible* covers test edits only.
-- **Extra re-run after a provider outage (Mistral, full run).** The Mistral retry pass started on 2026-10-13 at
-  15:35 CEST. At 16:57 every open stream was reset, and from then on every request failed within seconds with the
-  same gateway error, `Cannot connect to host sll-m11-39:8000 [Connect call failed]`. A probe at about 17:30 got the
-  same error for Qwen3 (`sll-m11-41:8000`), which had no load from us, so the outage was on the provider's side. The
-  runner spent the two retries of each remaining task within about a minute and recorded 26 tasks (25 conflicting,
-  1 oneoff) as agent errors. Excluding them would have removed a quarter of Mistral's conflicting split for a reason
-  unrelated to the agents, so we re-ran these 26 once more, from scratch, with the same commit (d923f23) and
-  settings, once the backend answered again (2026-10-14, 13:19-17:20), using `experiments/E2/rerun-after-outage.sh`.
-  The script selects tasks by the recorded error alone (`Connect call failed`), never by outcome, and kept the failed
-  records in `runs/E2/outage-2026-10-13`. 24 tasks completed; two are excluded: `conflicting/lcbhard_24` (connection
-  dropped on every retry, `Connection refused`) and `conflicting/lcbhard_93` (60-minute limit reached in the first
-  attempt). No task was re-run more than this once, and `oneoff/lcbhard_10` (timed out in the full run and in the
-  retry pass) was not re-run.
-- **Dirty flag on 34 Qwen retry runs.** They record `dirty: true` because `paper.tex` and `.gitignore` were edited in
-  the experiment checkout while the retry pass ran; the harness code was unchanged. Evidence:
-  `experiments/E2/results/qwen-retry-dirty.{md,patch}`.
+- **Simpler rater sheet (before any labelling).** The column `diff_shows_cheat` was dropped, so raters judge only
+  what the paper reports; *visible* therefore covers test edits only.
+- **One extra re-run after a provider outage (Mistral).** During the retry pass, the provider's model servers became
+  unreachable (2026-10-13), for Qwen as well, and 26 tasks failed because the model could not be reached. We re-ran exactly these
+  tasks once, selected by their error message alone, with the same commit and settings
+  (`experiments/E2/rerun-after-outage.sh`). 24 completed; 2 are excluded (a connection error and a timeout).
+- **Dirty flag on 34 Qwen runs.** These runs record `dirty: true` because `paper.tex` and `.gitignore` were edited
+  while they ran; the harness code was unchanged (`experiments/E2/results/qwen-retry-dirty.{md,patch}`).
 
-Observed, not a deviation: during the full run many streaming errors hit all open streams at once at about the same
-minute each hour (20:34, 22:34, 03:37 ... 10:38 CEST, drifting by about a minute per hour), which suggests a periodic
-reset on the provider's side. The per-attempt retries and the retry pass absorbed them.
-
-Exclusions after all passes: Qwen3 9 (7 connection errors, 2 timeouts), Mistral 3 (1 connection error, 2 timeouts).
-None of the excluded runs had misbehaved before it stopped.
+**Exclusions after all passes:** Qwen 9 (7 connection errors, 2 timeouts), Mistral 3 (1 connection error, 2
+timeouts). None of the excluded runs had misbehaved before it stopped.
 
 ## Labelling guide for `disclosed`
 
