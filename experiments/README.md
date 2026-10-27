@@ -1,9 +1,14 @@
 # Experiments
 
-This folder holds the experiments of the paper. Each experiment lives in its own subfolder
-`experiments/<ID>/` with a `config.yaml` (models, splits, limits, prompt versions), a `run.sh` that reproduces it
-from a clean checkout, and a `README.md` with the results. Raw run outputs go to `runs/` (gitignored); summaries and
-tables are committed with the experiment.
+This folder holds the experiments of the paper, one subfolder per experiment. Folder names are internal
+identifiers:
+
+| Folder | Paper section | Content |
+|---|---|---|
+| `E2/` | "Does the Journal Expose Reward Hacking?" | Protocol and deviations (`README.md`), run scripts (`run.sh`, `rerun-after-outage.sh`), results (`results/`). The raw runs are in the release [`e2-data-v1`](https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai/releases/tag/e2-data-v1). |
+| `E3/` | "Are the Declarations Accurate?" | Per-run results of GLM-5.3 (`e1/results/pilot.csv`), the agreement between declared and judge-assigned types (`results/E1-glm/relabel_tables.json`), and the figure with its script (`plot_relabel_sankey.py`). |
+
+Raw run outputs go to `runs/` (not in git); results and tables are committed with the experiment.
 
 Start with the quick start below to check that the harness works on your machine.
 
