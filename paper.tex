@@ -61,7 +61,7 @@
 \markboth{Building Trustworthy Software in the Time of AI}{Building Trustworthy Software in the Time of AI}
 
 \begin{abstract}
-    
+Coding agents change software through tool calls, but a call does not say why it was made: the same shell command can be an experiment or the silent disabling of a failing test. We propose the epistemic agent design, in which the harness refuses to run a command unless the model declares what kind of act it is and why. The harness then records what the command actually did and checks the declaration against these effects. The result is a journal that can guard calls before they run and support audits afterwards. We implemented the design as an open-source harness and evaluated it on ImpossibleBench, whose tasks can be passed only by cheating. Across \EtwoNmis{} reward-hacking runs of two open-weight models, the journal exposed \EtwoExposureRate, in every case because the agent stated the cheat in its own declared reason.
 \end{abstract}
 
 \maketitle
@@ -445,8 +445,7 @@ Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenan
 
 \section{Conclusion}
 
-
-
+A reviewer of agent work today sees what a coding agent did, but not why. The epistemic agent design makes the harness ask for the why: every command carries a declared type and reason, recorded before it runs and checked against the effects it produces. On impossible tasks, the agents rarely hid their cheating, and the journal exposed \EtwoExposureRate{} of the reward-hacking runs through their own declared reasons. Declarations do not make an agent honest, but they turn its account of each act into a claim the harness can test. Requiring a type on file edits, and linking the claims in an agent's final report to the journal entries that support them, would make that test stronger.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
