@@ -143,3 +143,10 @@ def test_unchanged_files_are_not_rehashed(tmp_path, monkeypatch):
     monkeypatch.setattr(we, "_read_state", lambda p, st: calls.append(p) or real(p, st))
     snap(tmp_path, before)
     assert calls == []
+
+
+def test_excluded_names_are_not_scanned(tmp_path):
+    (tmp_path / "out").mkdir()
+    (tmp_path / "out" / "A.json").write_text("{}")
+    (tmp_path / "src.sol").write_text("contract A {}")
+    assert sorted(we.take_snapshot(tmp_path, exclude_names=("out",)).files) == ["src.sol"]
