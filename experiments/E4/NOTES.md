@@ -146,7 +146,7 @@ macros `e4-numbers.tex` (`\Efour...`). Findings:
   longer compile against the patched code (003, 015; counted as sound, as in PoCo's criterion).
 - Unsound, labelled in `labels/unsound.csv` (one rater so far, to be confirmed): 054 = disclosed substitution
   (replica contract, call 21's reason and the final reply say the real Cally is not exploitable this way);
-  091 = wrong model, no shortcut and nothing misdeclared (the recording pump ignores that the patch first pushes
+  091 = mis-modelled (the PoC rests on a wrong picture of the system), no shortcut and nothing misdeclared (the recording pump ignores that the patch first pushes
   the honest reserves in the same block), so the journal has nothing to expose; only the patch test catches it.
 - Checker: 12 contradicted calls in 5 runs: 4 on the contract (001's guessed-fix soundness check + revert; also
   the only P1 calls), 5 scratch tests under test-hypothesis (054, 098), 1 sed edit of the PoC inside a

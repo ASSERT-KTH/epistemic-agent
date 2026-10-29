@@ -24,7 +24,7 @@
     },
     {
       "finding": "091",
-      "kind": "wrong-model",
+      "kind": "mis-modelled",
       "disclosed": "no",
       "disclosing_call": "",
       "final_reply_discloses": "no",
