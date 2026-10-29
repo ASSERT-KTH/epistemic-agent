@@ -925,6 +925,8 @@ def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
         "task": " ".join(args.task) if args.task else None,
         "model": args.model,
         "endpoint": args.endpoint,
+        "provider": args.provider,
+        "temperature": args.temperature,   # None: agentknit's default (0)
         "harness": {
             "mode": "epistemic",
             "hermetic": args.hermetic,
@@ -937,6 +939,7 @@ def _run_metadata(args: argparse.Namespace) -> dict[str, object]:
             "temperature": args.temperature if args.temperature is not None else 0,
             "exclude_dirs": list(args.exclude_dir),
             "allow_give_up": args.allow_give_up,
+            "user_agent": USER_AGENT,
         },
         "backend": (anthropic_backend.settings() if anthropic_backend.handles(args.endpoint)
                     else {"backend": "openai-compatible"}),
@@ -1115,8 +1118,12 @@ def _key_source(key_env: str, endpoint: str) -> dict[str, str]:
     return {"keyring_service": service, "keyring_username": KEYRING_USERNAME}
 
 
+USER_AGENT = "epistemic-agent/0.1 (+https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai)"
+
+
 def _build_schema(model: str, endpoint: str, key_env: str, stream: bool = True,
-                  allow_give_up: bool = False, temperature: float | None = None) -> dict[str, object]:
+                  allow_give_up: bool = False, provider: str | None = None,
+                  temperature: float | None = None) -> dict[str, object]:
     schema: dict[str, object] = {
         "model": model,
         "endpoint": endpoint,
@@ -1135,11 +1142,17 @@ def _build_schema(model: str, endpoint: str, key_env: str, stream: bool = True,
         # send nothing for a while (SciLifeLab: HTTP 504 after 60 s, seen on
         # long answers to hard tasks); a stream keeps the connection alive.
         "provider_api_support": {"streaming": {"supported": stream}},
+        # Our own client identifier: some gateways (Kimi Code) block the
+        # HTTP library's default one.
+        "extra_headers": {"User-Agent": USER_AGENT},
     }
     if temperature is not None:
-        # agentknit sends temperature 0; some models accept only another value
-        # (Kimi k3: only 1). Endpoint-declared request params override it.
+        # Overrides agentknit's temperature 0, for models that accept only 1 (Kimi k3).
         schema["request_params"] = {"temperature": temperature}
+    if provider:
+        # OpenRouter routing: one upstream provider for every call, no fallback,
+        # so all runs of an experiment are served by the same backend.
+        schema["provider"] = {"order": [provider], "allow_fallbacks": False}
     return schema
 
 
@@ -1158,6 +1171,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--key-env", default=KEY_ENV,
                    help=f"Env var holding the API key (default: {KEY_ENV}; "
                         f"falls back to keyring <endpoint-hostname>/{KEYRING_USERNAME})")
+    p.add_argument("--provider", metavar="SLUG",
+                   help="OpenRouter only: serve every call from this upstream provider, "
+                        "without fallback (e.g. z-ai)")
     p.add_argument("--session", metavar="SESSION_ID")
     p.add_argument("--out-dir", metavar="DIR",
                    help="Write journal.jsonl and RATIONALE.md to DIR instead of "
@@ -1241,7 +1257,7 @@ def main() -> None:
     global MAX_PROMPT_TOKENS
     MAX_PROMPT_TOKENS = args.max_prompt_tokens
     schema = _build_schema(args.model, args.endpoint, args.key_env, args.stream, args.allow_give_up,
-                           args.temperature)
+                           args.provider, args.temperature)
     opts = dict(session_id=args.session,
                 system_prompt_supplement=_system_supplement(args.hermetic, args.allow_give_up),
                 strict_cache_proof=False)
