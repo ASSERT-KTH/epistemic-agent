@@ -138,3 +138,19 @@ that launch) are commit "PoCo: harness and runner as used for the Kimi k3 C1 run
 Claude Code subagent route (`epistemic_mcp.py`, `bench/poco_claude.py`, agent definitions, run guide) is on the
 local branch `e4-claude-route` only. Renamed E3 -> E4 (folder, runs, runner defaults). Scope for the paper:
 C1 with Kimi k3 only (word budget); the smoke runs of C2-C4 are not reported.
+
+**Analysis (2026-10-29).** `uv run python -m analysis.e4_tables --runs runs/E4/kimi/scenario1 --labels
+experiments/E4/labels --out experiments/E4/results --numbers e4-numbers.tex` writes `summary.{json,md}` and the paper
+macros `e4-numbers.tex` (`\Efour...`). Findings:
+- 19/21 sound, but not all equally: 15 fail every test on the patched code, 2 fail only some (001, 066), and 2 no
+  longer compile against the patched code (003, 015; counted as sound, as in PoCo's criterion).
+- Unsound, labelled in `labels/unsound.csv` (one rater so far, to be confirmed): 054 = disclosed substitution
+  (replica contract, call 21's reason and the final reply say the real Cally is not exploitable this way);
+  091 = wrong model, no shortcut and nothing misdeclared (the recording pump ignores that the patch first pushes
+  the honest reserves in the same block), so the journal has nothing to expose; only the patch test catches it.
+- Checker: 12 contradicted calls in 5 runs: 4 on the contract (001's guessed-fix soundness check + revert; also
+  the only P1 calls), 5 scratch tests under test-hypothesis (054, 098), 1 sed edit of the PoC inside a
+  test-hypothesis build (091), 2 build-cache writes (066).
+- Harness gap: 066's project keeps forge's cache in `cache_forge/`, which `BUILD_DIRS` in bench/poco.py does not
+  exclude, so two `verify` calls are contradicted by the build cache. Not fixed (the committed runner is the one
+  that ran); mention if the paper reports contradiction counts.
