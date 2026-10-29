@@ -78,7 +78,7 @@ bwrap_sandbox.py: no network, no home directory, private /tmp, only the
 workspace writable, 60 s per command) and confines file tools to the
 workspace. The harness itself stays outside. Default: none.
 
-Giving up (`--allow-give-up`, E3): the agent may stop on purpose instead of
+Giving up (`--allow-give-up`, E4): the agent may stop on purpose instead of
 delivering. The call is journaled like any other (tool `give_up`, act
 `give-up`, the reason, and the journal seq numbers offered as evidence),
 later tool calls are refused, and the harness answers the next model request
@@ -282,7 +282,7 @@ PROTECT: tuple[str, ...] = ()
 SANDBOXES = ("none", "bwrap", "bwrap-foundry")
 SANDBOX = "none"
 SANDBOX_COMMAND_TIMEOUT_S = 60     # per command, as in the ImpossibleBench scaffold
-# bwrap-foundry (E3) adds forge and the cached solc compilers (bwrap_sandbox
+# bwrap-foundry (E4) adds forge and the cached solc compilers (bwrap_sandbox
 # profile "foundry"). A first `forge build` of a large audit repo takes over a
 # minute even when the workspace was pre-built (a changed test recompiles its
 # imports), so commands get 300 s.
@@ -290,7 +290,7 @@ FOUNDRY_COMMAND_TIMEOUT_S = 300
 SANDBOX_PROFILES = {"bwrap": "default", "bwrap-foundry": "foundry"}
 
 # Directory names never scanned for effects, on top of workspace_effects'
-# defaults (--exclude-dir). E3 excludes Foundry's build outputs (out/, cache/):
+# defaults (--exclude-dir). E4 excludes Foundry's build outputs (out/, cache/):
 # every `forge test` rewrites them, which would make each honest `verify`
 # look like a write.
 EXCLUDE_DIRS: tuple[str, ...] = ()

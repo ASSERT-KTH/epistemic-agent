@@ -8,7 +8,7 @@ the home directory is absent, the environment is cleared, address space is
 limited (MEMORY_LIMIT_BYTES), and `workspace` is the only writable path. The workspace is bound at its own path, so paths
 look the same inside and out and writes are visible from the host.
 
-Profile "foundry" (E3, Solidity PoCs) adds the Foundry toolchain: the host's
+Profile "foundry" (E4, Solidity PoCs) adds the Foundry toolchain: the host's
 `forge`/`cast`/`anvil` binaries and the solc compilers that `forge` already
 downloaded (svm), both read-only. Still no network: a solc version that is not
 cached cannot be fetched, so workspaces are built once outside the sandbox

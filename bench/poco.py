@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-bench/poco.py — run the epistemic agent on PoCo's PoC-generation task (E3).
+bench/poco.py — run the epistemic agent on PoCo's PoC-generation task (E4).
 
 PoCo (arXiv:2511.02780) asks an agent to write a Foundry test that
 demonstrates a known smart-contract vulnerability, given the vulnerable code
@@ -8,7 +8,7 @@ and an auditor's annotation. Proof-of-Patch, its benchmark, pairs each finding
 with the ground-truth patch, so a PoC can be judged *sound*: it passes on the
 vulnerable code and fails once the patch is applied.
 
-E3 runs four configurations (experiments/E3/PLAN.md):
+E4 runs four configurations (experiments/E4/PLAN.md):
 
   C1  write the PoC
   C2  C1 + a give_up tool (epistemic_agent.py --allow-give-up)
@@ -179,7 +179,7 @@ def _copy_node_modules(ws: Path, finding: Finding) -> list[str]:
 
 
 def forge(args: list[str], cwd: Path, timeout: int, sandboxed: bool) -> subprocess.CompletedProcess:
-    """forge on the host (preparation: may download solc) or in the E3 sandbox."""
+    """forge on the host (preparation: may download solc) or in the E4 sandbox."""
     if sandboxed:
         cmd = "forge " + " ".join(args)
         return bwrap_sandbox.run(cmd, cwd, timeout, "foundry")
@@ -529,7 +529,7 @@ def run_all(findings: list[Finding], configs: list[str], cfg: RunConfig, jobs: i
     tasks = [(f, c) for c in configs for f in findings]
     total, done, spent, t0 = len(tasks), 0, 0.0, time.time()
     results = []
-    print(f"E3: {total} tasks, {jobs} at a time, model {cfg.model}, limit {cfg.wall_clock_s}s/task, "
+    print(f"E4: {total} tasks, {jobs} at a time, model {cfg.model}, limit {cfg.wall_clock_s}s/task, "
           f"cap ${cfg.max_cost_usd}/run -> {cfg.out}", flush=True)
 
     def one(f: Finding, c: str) -> dict:
@@ -632,7 +632,7 @@ def _select(findings: list[Finding], ids: list[str] | None) -> list[Finding]:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
-    base_default = ROOT / "runs" / "E3" / "base"
+    base_default = ROOT / "runs" / "E4" / "base"
 
     pp = sub.add_parser("prepare", help="build the pristine base workspaces")
     pp.add_argument("--base", type=Path, default=base_default)

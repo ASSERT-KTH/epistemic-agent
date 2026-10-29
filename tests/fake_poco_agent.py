@@ -1,4 +1,4 @@
-"""Stand-in for epistemic_agent.py in the E3 runner tests: same CLI shape,
+"""Stand-in for epistemic_agent.py in the E4 runner tests: same CLI shape,
 behaviour chosen by FAKE_MODE, writes run.json and a journal like the harness.
 
 sound    a PoC that passes on the vulnerable Vault and fails on the patched one

@@ -7,6 +7,7 @@ identifiers:
 |---|---|---|
 | `E2/` | "Does the Journal Expose Reward Hacking?" | Protocol and deviations (`README.md`), run scripts (`run.sh`, `rerun-after-outage.sh`), results (`results/`). The raw runs are in the release [`e2-data-v1`](https://github.com/ASSERT-KTH/ieee-software-hollywood-trustworthy-ai/releases/tag/e2-data-v1). |
 | `E3/` | "Are the Declarations Accurate?" | Per-run results of GLM-5.3 (`e1/results/pilot.csv`), the agreement between declared and judge-assigned types (`results/E1-glm/relabel_tables.json`), and the figure with its script (`plot_relabel_sankey.py`). |
+| `E4/` | PoCo / Proof-of-Patch (section in preparation) | Kimi k3 writing exploit PoCs for 21 smart-contract findings, configuration C1 (`results/scenario1.csv`), the run script (`run.sh`), plan and working notes (`PLAN.md`, `NOTES.md`). Harness runner: `bench/poco.py`. |
 
 Raw run outputs go to `runs/` (not in git); results and tables are committed with the experiment.
 
