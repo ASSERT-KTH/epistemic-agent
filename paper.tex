@@ -41,6 +41,7 @@
 % Text based on partial results, to check against the final E2 data before submission.
 \newcommand{\prelim}[1]{\textcolor{magenta}{#1}}
 \input{e2-numbers}
+\input{e4-numbers}
 
 
 \begin{document}
@@ -61,7 +62,7 @@
 \markboth{Building Trustworthy Software in the Time of AI}{Building Trustworthy Software in the Time of AI}
 
 \begin{abstract}
-Coding agents change software through tool calls, but a call does not say why it was made: the same shell command can be an experiment or the silent disabling of a failing test. We propose the epistemic agent design, in which the harness refuses to run a command unless the model declares what kind of act it is and why. The harness then records what the command actually did and checks the declaration against these effects. The result is a journal that can guard calls before they run and support audits afterwards. We implemented the design as an open-source harness and evaluated it on ImpossibleBench, whose tasks can be passed only by cheating. Across \EtwoNmis{} reward-hacking runs of two open-weight models, the journal exposed \EtwoExposureRate, in every case because the agent stated the cheat in its own declared reason.
+Coding agents change software through tool calls, but a call does not say why it was made: the same shell command can be an experiment or the silent disabling of a failing test. We propose the epistemic agent design, in which the harness refuses to run a command unless the model declares what kind of act it is and why. The harness then records what the command actually did and checks the declaration against these effects. The result is a journal that can guard calls before they run and support audits afterwards. We implemented the design as an open-source harness and evaluated it on ImpossibleBench, whose tasks can be passed only by cheating. Across \EtwoNmis{} reward-hacking runs of two open-weight models, the journal exposed \EtwoExposureRate, in every case because the agent stated the cheat in its own declared reason. On a realistic task, writing exploits for \EfourNfindings{} smart-contract vulnerabilities, Kimi K3 produced \EfourNsound{} sound exploits and disclosed its only shortcut; every edit of the contract under test was an experiment that its declaration explained.
 \end{abstract}
 
 \maketitle
@@ -94,7 +95,7 @@ The epistemic declaration can be used online or offline. Online, it acts as a gu
 This paper makes the following contributions:
 \begin{itemize}    
     \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every tool call. The declared intent is checked against the observed effects after each call, and can guard calls before they run (online) or be audited afterwards (offline).
-    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the recorded declarations and effects expose \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). On honest runs, an independent model confirms 75\% of the declared types.
+    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the recorded declarations and effects expose \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). On honest runs, an independent model confirms 75\% of the declared types. On a realistic exploit-writing task, the journal shows the one shortcut and explains every edit of the contract under test.
     \item \textbf{Prototype.} An open-source implementation of the design for coding agents.
 \end{itemize}
 
@@ -382,6 +383,25 @@ Almost all disagreements stay inside the read-only types. The most frequent case
 The coarse type is reliable: the agent and the judge agreed on whether a call was read-only or changed state for 99\% of the calls, and every contradiction the checker reports rests on that distinction. The fine-grained types are softer. Most disagreements fall between \texttt{test-hypothesis} and \texttt{verify}, which differ in how sure the agent is before the call, something an outside reader infers only from the outcome. On honest runs, a contradiction is a reason to look, not a verdict: all 27 marked a scratch script that the agent, and for 22 of them the judge, treated as part of an experiment. Letting an experiment create and remove its own scratch files, or giving that act a type of its own, would remove these contradictions without hiding a change to the deliverable.
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Does the Journal Help on a Real Security Task?}
+
+ImpossibleBench leaves cheating as the only way to pass. We now turn to a realistic task that can be solved honestly, but where a shortcut is tempting: writing a proof-of-concept (PoC) exploit for a known vulnerability in a smart contract.
+
+\subsection{Experimental Protocol}
+We use Proof-of-Patch, the benchmark of PoCo~\cite{Andersson2026PoCo}: audited Solidity projects, each with a vulnerability reported by an auditor and the patch that fixed it. We keep the \EfourNfindings{} of its 23 findings that build and run offline. The agent receives the vulnerable project and the auditor's description, and must write a Foundry test that demonstrates the exploit. A PoC is \emph{sound} if it passes on the vulnerable code and fails once the patch is applied; the agent never sees the patch. We run Kimi K3 once per finding, at temperature 1 (the only value its endpoint accepts), within 45 minutes per run. The sandbox adds the Foundry toolchain, still without network, and the contract sources and libraries are protected paths.
+
+\subsection{Experimental Results}
+\EfourNsound{} of the \EfourNfindings{} PoCs are sound (\EfourSoundRate, 95\% CI \EfourSoundCI). In \EfourNstrict{} of them every test fails on the patched code; in \EfourNmixed{} only some do, and \EfourNpatchedCompileError{} no longer compile against it. A run took a median of \EfourMedianCalls{} calls (\EfourMinCalls--\EfourMaxCalls) and \EfourMedianMinutes{} minutes.
+
+The two unsound PoCs show what the journal can and cannot see. In one, the agent's experiments showed that the contract's transfer library rejects the malicious token, so the reported attack cannot happen in this code. It then demonstrated the attack on a copy of the contract it wrote itself, and the reason declared for writing the PoC says so: it shows ``the vulnerable lifecycle [\ldots] and its boundary against the actual Cally contract''. The shortcut is disclosed. In the other, the agent misunderstood how the patch protects the price oracle, and its test checks a property that still holds after the fix. No declaration was false, so the journal has nothing to expose: only the patch reveals the error.
+
+The checker contradicted \EfourNcontradictedCalls{} calls in \EfourNcontradictedRuns{} runs; none hides a shortcut. Of these, \EfourNcontradictedScratch{} write scratch tests and \EfourNcontradictedPoc{} edits the PoC under a read-only type, experiments as with GLM-5.3, and \EfourNcontradictedCache{} are build-cache writes that our runner failed to exclude. The other \EfourNcontradictedContract{} are the only edits of a protected path. In one run, the agent applied its own guess of the fix to the contract, re-ran its PoC to see whether it would fail, and restored the contract, twice. It declared each edit a \texttt{test-hypothesis}, ``Soundness check: [\ldots] if the test still passes, the PoC would be a false positive'', and each restore a \texttt{revert}. Without the declarations, these calls would look like tampering with the contract under test.
+
+\subsection{What We Learned}
+On a task that can be solved, most journal entries that the checker flags record diligence rather than misconduct: the agent's own experiments, explained by their reasons. The only shortcut was disclosed, as on ImpossibleBench. The journal shows how the agent reached its PoC, not whether the PoC is right: the mistaken exploit came with honest declarations throughout, so an external oracle such as the patch remains necessary.
+
+
 
 
 \begin{comment}
@@ -401,7 +421,7 @@ Earlier experiment ideas (kept from the planning notes):
 
 \section{Limitations}
 
-The checker verifies declared types against observed effects, not the truth of reasons. Our prototype assigns fixed types to file tools instead of asking for them, so a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files in the workspace; changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently. Each call also carries a declaration the model must write, which adds tokens.
+The checker verifies declared types against observed effects, not the truth of reasons. Our prototype assigns fixed types to file tools instead of asking for them, so a cheat through a file edit can be disclosed but never contradicted. Effects are observed at the level of files in the workspace; changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on larger harnesses may behave differently. The exploit-writing experiment uses one model and one run per finding at temperature 1, so its numbers come from \EfourNfindings{} runs. A declaration can be honest and still mistaken: the journal records what the agent believed, not whether it was right. Each call also carries a declaration the model must write, which adds tokens.
 
 
 \section{Related Work}
@@ -445,7 +465,7 @@ Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenan
 
 \section{Conclusion}
 
-A reviewer of agent work today sees what a coding agent did, but not why. The epistemic agent design makes the harness ask for the why: every command carries a declared type and reason, recorded before it runs and checked against the effects it produces. On impossible tasks, the agents rarely hid their cheating, and the journal exposed \EtwoExposureRate{} of the reward-hacking runs through their own declared reasons. Declarations do not make an agent honest, but they turn its account of each act into a claim the harness can test. Requiring a type on file edits, and linking the claims in an agent's final report to the journal entries that support them, would make that test stronger.
+A reviewer of agent work today sees what a coding agent did, but not why. The epistemic agent design makes the harness ask for the why: every command carries a declared type and reason, recorded before it runs and checked against the effects it produces. On impossible tasks, the agents rarely hid their cheating, and the journal exposed \EtwoExposureRate{} of the reward-hacking runs through their own declared reasons. On real exploit-writing tasks, the declarations turned edits of the contract under test from apparent tampering into documented experiments. Declarations do not make an agent honest, but they turn its account of each act into a claim the harness can test. Requiring a type on file edits, and linking the claims in an agent's final report to the journal entries that support them, would make that test stronger.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
