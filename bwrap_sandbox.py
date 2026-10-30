@@ -18,14 +18,17 @@ address space: forge reserves virtual memory per thread and aborted under
 RLIMIT_DATA counts what is actually allocated (a 6 GiB Python allocation
 still fails with MemoryError under the 4 GiB cap).
 
-Profile "foundry-rpc" (E4, finding 046 only) is "foundry" plus the host's network,
-so forge can fork mainnet through a local RPC (MAINNET_RPC_URL, an anvil fork run
-on the host by the experiment script; the provider's URL and key stay outside).
-A documented exception: with the network, effects outside the workspace are no
-longer guaranteed to be visible.
+Profile "foundry-rpc" (E4, finding 046 only) is "foundry" plus one Unix socket:
+an anvil mainnet fork that the experiment script runs on the host, pinned to a
+block, listening on RPC_IPC_DIR/anvil.ipc. The socket's directory is bound at
+/opt/rpc and MAINNET_RPC_URL points at it, so forge can fork mainnet while the
+sandbox still has no network; the provider's URL and key stay on the host. A
+documented exception: through the fork, the agent reads chain state that is not
+in the workspace (it cannot change anything outside it).
 """
 from __future__ import annotations
 
+import os
 import shlex
 import shutil
 import subprocess
@@ -40,7 +43,8 @@ SYSTEM_DIRS = ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/etc")
 MEMORY_LIMIT_BYTES = 2 * 1024 ** 3
 
 PROFILES = ("default", "foundry", "foundry-rpc")
-LOCAL_RPC_URL = "http://127.0.0.1:8545"
+RPC_IPC_DIR = Path(os.environ.get("E4_RPC_IPC_DIR", Path(__file__).resolve().parent / "runs" / "E4" / "rpc"))
+RPC_IPC_PATH = "/opt/rpc/anvil.ipc"
 FOUNDRY_BIN = Path.home() / ".foundry" / "bin"
 SVM_DIR = Path.home() / ".local" / "share" / "svm"      # svm-rs: $XDG_DATA_HOME/svm
 FOUNDRY_DATA_LIMIT_BYTES = 4 * 1024 ** 3
@@ -77,8 +81,8 @@ def argv(command: str, workspace: Path, timeout_s: int, profile: str = "default"
         path = "/opt/foundry/bin:" + path
         limit = f"--data={FOUNDRY_DATA_LIMIT_BYTES}"
     if profile == "foundry-rpc":
-        parts += ["--share-net"]
-        env += ["--setenv", "MAINNET_RPC_URL", LOCAL_RPC_URL]
+        parts += ["--bind", str(RPC_IPC_DIR), "/opt/rpc"]
+        env += ["--setenv", "MAINNET_RPC_URL", RPC_IPC_PATH]
     return parts + [
         "--dir", "/opt/epistemic/bin",
         "--symlink", "/usr/bin/python3", "/opt/epistemic/bin/python",   # `python` -> python3

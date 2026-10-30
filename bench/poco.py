@@ -69,12 +69,12 @@ DATASET = Path(os.environ.get("POP_DATASET", "/mnt/ssd2/sofia/Proof-of-Patch"))
 PRIOR_WORKSPACES = Path(os.environ.get("POCO_PRIOR_RUN", "/mnt/ssd2/sofia/claude-new-run/full_20261006_103919"))
 # Excluded until 2026-10-30; both added back for the paper (experiments/E4/NOTES.md).
 EXCLUDED: dict[str, str] = {}
-# 046 needs a mainnet fork: its runs and grading use the sandbox profile with the
-# host network and a local anvil fork at bwrap_sandbox.LOCAL_RPC_URL (documented exception).
+# 046 needs a mainnet fork: its runs and grading use the sandbox profile that
+# exposes the socket of a local anvil fork (bwrap_sandbox "foundry-rpc"; documented exception).
 RPC_FINDINGS = {"046"}
 NETWORK_SENTENCE = "Commands run in a sandbox without network access."
-RPC_SENTENCE = ("Commands run in a sandbox. An Ethereum mainnet RPC endpoint for forking is available "
-                "in the environment variable MAINNET_RPC_URL.")
+RPC_SENTENCE = ("Commands run in a sandbox without network access, except for an Ethereum mainnet RPC "
+                "endpoint for forking, available in the environment variable MAINNET_RPC_URL.")
 # Build-configuration fixes applied when the base workspace is prepared (never to
 # contracts or tests). 049: two remappings lack their trailing slash, forge drops
 # `test/` unless the test directory is declared, and forge's linter fails the build
@@ -563,6 +563,10 @@ def _fmt(seconds: float) -> str:
 
 def run_all(findings: list[Finding], configs: list[str], cfg: RunConfig, jobs: int = 4) -> list[dict]:
     tasks = [(f, c) for c in configs for f in findings]
+    socket = bwrap_sandbox.RPC_IPC_DIR / "anvil.ipc"
+    if any(f.id in RPC_FINDINGS for f in findings) and not socket.is_socket():
+        raise SystemExit(f"finding(s) {sorted(RPC_FINDINGS & {f.id for f in findings})} need the mainnet fork: "
+                         f"start anvil on {socket} first (experiments/E4/run.sh fork)")
     total, done, spent, t0 = len(tasks), 0, 0.0, time.time()
     results = []
     print(f"E4: {total} tasks, {jobs} at a time, model {cfg.model}, limit {cfg.wall_clock_s}s/task, "

@@ -10,6 +10,8 @@
 #   experiments/E4/run.sh retry smoke|full    re-run tasks that ended in an agent error or a timeout
 #   experiments/E4/run.sh status smoke|full   progress, from any terminal, while it runs
 #   experiments/E4/run.sh collect smoke|full  results CSV into experiments/E4/results/
+#   experiments/E4/run.sh fork                mainnet fork for 046 (anvil on runs/E4/rpc/anvil.ipc; keep running)
+#   experiments/E4/run.sh addback             C1 on 046 and 049 into scenario1 (needs `fork` running)
 # PROVIDER selects the model (default kimi):
 #   kimi       k3 on the Kimi Coding Plan (api.kimi.com/coding/v1), key KIMI_API_KEY, temperature 1
 #   anthropic  claude-opus-4-8 via the Messages API, key ANTHROPIC_API_KEY, effort xhigh, $ cost cap
@@ -36,6 +38,8 @@ JOBS="${JOBS:-4}"
 SMOKE_FINDINGS=(077 091)
 OUT_ROOT="runs/E4/$PROVIDER"
 ENV_FILE="${ENV_FILE:-/mnt/ssd2/sofia/.env}"
+RPC_ENV_FILE="${RPC_ENV_FILE:-/mnt/ssd2/sofia/PoCo-private/.env}"   # MAINNET_RPC_URL (provider URL with key)
+FORK_BLOCK=26304609     # Ethereum mainnet block the 046 fork is pinned to (latest on 2026-10-30)
 
 load_key() {
   if [[ -z "${!KEY_ENV:-}" ]]; then
@@ -84,6 +88,25 @@ case "$cmd" in
   smoke)
     load_key
     run_phase smoke "${SMOKE_FINDINGS[@]}"
+    ;;
+  fork)  # anvil mainnet fork for 046, pinned; the provider URL goes through the environment, never argv
+    dir=runs/E4/rpc; mkdir -p "$dir"; rm -f "$dir/anvil.ipc"
+    printf '[rpc_endpoints]\nmainnet = "${MAINNET_RPC_URL}"\n' > "$dir/foundry.toml"
+    MAINNET_RPC_URL="$(sed -n 's/^[[:space:]]*\(export[[:space:]]\+\)\{0,1\}MAINNET_RPC_URL=//p' "$RPC_ENV_FILE" \
+                      | tail -1 | tr -d "\r\"'")"
+    [[ -n "$MAINNET_RPC_URL" ]] || { echo "error: no MAINNET_RPC_URL in $RPC_ENV_FILE" >&2; exit 1; }
+    export MAINNET_RPC_URL
+    echo "anvil: mainnet fork at block $FORK_BLOCK on $dir/anvil.ipc (Ctrl-C to stop)" >&2
+    cd "$dir" && exec "$HOME/.foundry/bin/anvil" --fork-url mainnet --fork-block-number "$FORK_BLOCK" \
+      --ipc "$PWD/anvil.ipc" --port 18545 --host 127.0.0.1 --silent
+    ;;
+  addback)  # 046 and 049, excluded until 2026-10-30, into the scenario1 run (C1)
+    load_key
+    snap="$OUT_ROOT/scenario1/provenance/$(date -u +%Y-%m-%dT%H%M)-addback"; mkdir -p "$snap"
+    git rev-parse HEAD > "$snap/HEAD"; git diff > "$snap/tracked.diff"
+    echo "$FORK_BLOCK" > "$snap/fork_block"
+    EXTRA=(--configs C1)
+    run_phase scenario1 046 049
     ;;
   scenario1)  # C1 on all findings; harness may be uncommitted, so snapshot it into the run dir
     load_key

@@ -287,8 +287,8 @@ SANDBOX_COMMAND_TIMEOUT_S = 60     # per command, as in the ImpossibleBench scaf
 # minute even when the workspace was pre-built (a changed test recompiles its
 # imports), so commands get 300 s.
 FOUNDRY_COMMAND_TIMEOUT_S = 300
-# bwrap-foundry-rpc: the same plus the host network for a local mainnet-fork RPC
-# (E4 finding 046 only; see bwrap_sandbox.py).
+# bwrap-foundry-rpc: the same plus the socket of a local mainnet fork, still
+# without network (E4 finding 046 only; see bwrap_sandbox.py).
 SANDBOX_PROFILES = {"bwrap": "default", "bwrap-foundry": "foundry", "bwrap-foundry-rpc": "foundry-rpc"}
 
 # Directory names never scanned for effects, on top of workspace_effects'

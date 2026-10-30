@@ -1,5 +1,5 @@
 """bench/poco.py: the two findings added back on 2026-10-30. 049 gets build-configuration
-fixes, 046 a sandbox with the host network for a local mainnet-fork RPC. No forge or
+fixes, 046 a sandbox that also exposes the socket of a local mainnet fork. No forge or
 network needed."""
 from pathlib import Path
 
@@ -15,17 +15,19 @@ def finding(fid: str, root: str = ".") -> poco.Finding:
     return poco.Finding(fid, "repo", "src/C.sol", root, "the annotation", Path("/nonexistent"))
 
 
-def test_rpc_profile_shares_the_network_and_points_at_the_local_fork(tmp_path):
+def test_rpc_profile_stays_offline_and_binds_only_the_fork_socket(tmp_path):
     rpc = bwrap_sandbox.argv("forge test", tmp_path, 10, "foundry-rpc")
     offline = bwrap_sandbox.argv("forge test", tmp_path, 10, "foundry")
-    assert "--share-net" in rpc and "--share-net" not in offline
+    assert "--unshare-all" in rpc and "--share-net" not in rpc
+    i = rpc.index("/opt/rpc")
+    assert rpc[i - 2:i] == ["--bind", str(bwrap_sandbox.RPC_IPC_DIR)] and "/opt/rpc" not in offline
     i = rpc.index("MAINNET_RPC_URL")
-    assert rpc[i - 1] == "--setenv" and rpc[i + 1] == bwrap_sandbox.LOCAL_RPC_URL
+    assert rpc[i - 1] == "--setenv" and rpc[i + 1] == bwrap_sandbox.RPC_IPC_PATH
     assert "MAINNET_RPC_URL" not in offline
     assert "/opt/foundry/bin" in " ".join(rpc)          # same toolchain as the offline profile
 
 
-def test_only_046_runs_with_the_network():
+def test_only_046_gets_the_fork():
     assert poco.sandbox_profile(finding("046")) == "foundry-rpc"
     assert poco.sandbox_profile(finding("049")) == "foundry"
     cfg = poco.RunConfig(out=Path("/o"), base=Path("/b"))
@@ -38,7 +40,7 @@ def test_only_046_runs_with_the_network():
 def test_prompt_states_the_network_per_finding():
     assert poco.NETWORK_SENTENCE in poco.task_prompt(finding("054"), "C1")
     p046 = poco.task_prompt(finding("046"), "C1")
-    assert poco.RPC_SENTENCE in p046 and "without network" not in p046
+    assert poco.RPC_SENTENCE in p046 and poco.NETWORK_SENTENCE not in p046
 
 
 def test_prompt_of_the_other_findings_is_unchanged():
@@ -74,3 +76,10 @@ def test_foundry_root_without_foundry_toml(tmp_path):
     (repo / "src" / "C.sol").write_text("")
     assert poco._foundry_root(repo, "src/C.sol") == "."
     assert poco._foundry_root(repo, "src/Missing.sol") is None
+
+
+def test_run_refuses_046_without_the_fork_socket(tmp_path, monkeypatch):
+    monkeypatch.setattr(bwrap_sandbox, "RPC_IPC_DIR", tmp_path / "rpc")
+    cfg = poco.RunConfig(out=tmp_path / "o", base=tmp_path / "b")
+    with pytest.raises(SystemExit, match="mainnet fork"):
+        poco.run_all([finding("046")], ["C1"], cfg)
