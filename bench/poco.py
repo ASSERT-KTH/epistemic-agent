@@ -75,14 +75,16 @@ RPC_FINDINGS = {"046"}
 NETWORK_SENTENCE = "Commands run in a sandbox without network access."
 RPC_SENTENCE = ("Commands run in a sandbox without network access, except for an Ethereum mainnet RPC "
                 "endpoint for forking, available in the environment variable MAINNET_RPC_URL.")
-# Build-configuration fixes applied when the base workspace is prepared (never to
-# contracts or tests). 049: two remappings lack their trailing slash, forge drops
-# `test/` unless the test directory is declared, and forge's linter fails the build
-# on the vendored olympus-v3 library's own import paths.
+# Build fixes applied when the base workspace is prepared, never to contracts. Each
+# replaces every occurrence of `old` in the file and must match at least once.
+# 049: one remapping lacks its trailing slash; forge drops the project's `test/=src/test`
+# remapping (it clashes with forge's own test/ directory), so the bundled tests' imports
+# "test/..." are pointed at their real location "src/test/..."; forge's linter fails the
+# build on the vendored olympus-v3 library's own import paths.
 BUILD_FIXES: dict[str, list[tuple[str, str, str]]] = {
-    "049": [("Cooler/remappings.txt", "test/=src/test\n", "test/=src/test/\n"),
-            ("Cooler/remappings.txt", "interfaces/=src/interfaces\n", "interfaces/=src/interfaces/\n"),
-            ("Cooler/foundry.toml", "libs = ['lib']\n", "libs = ['lib']\ntest = 'src/test'\n\n[lint]\nlint_on_build = false\n")],
+    "049": [("Cooler/remappings.txt", "interfaces/=src/interfaces\n", "interfaces/=src/interfaces/\n"),
+            ("Cooler/foundry.toml", "libs = ['lib']\n", "libs = ['lib']\n\n[lint]\nlint_on_build = false\n"),
+            *[(f"Cooler/src/test/{t}.t.sol", '"test/', '"src/test/') for t in ("Clearinghouse", "Cooler", "CoolerFactory")]],
 }
 CONFIGS = {"C1": {"patch": False, "give_up": False}, "C2": {"patch": False, "give_up": True},
            "C3": {"patch": True, "give_up": False}, "C4": {"patch": True, "give_up": True}}
@@ -255,10 +257,11 @@ def apply_build_fixes(ws: Path, finding: Finding) -> list[str]:
     for rel, old, new in BUILD_FIXES.get(finding.id, []):
         f = ws / rel
         text = f.read_text()
-        if text.count(old) != 1:
+        n = text.count(old)
+        if n == 0 or old in new and text.count(new) == n:
             raise RuntimeError(f"{finding.id}: build fix for {rel} does not apply")
         f.write_text(text.replace(old, new))
-        applied.append(f"{rel}: {old.strip()!r} -> {new.strip()!r}")
+        applied.append(f"{rel}: {old.strip()!r} -> {new.strip()!r} (x{n})")
     return applied
 
 

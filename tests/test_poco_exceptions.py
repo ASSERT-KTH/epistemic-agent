@@ -54,16 +54,19 @@ def test_prompt_of_the_other_findings_is_unchanged():
 
 def test_build_fixes_apply_once_and_fail_loudly(tmp_path):
     ws = tmp_path / "ws"
-    (ws / "Cooler").mkdir(parents=True)
-    (ws / "Cooler" / "remappings.txt").write_text("forge-std/=lib/forge-std/src/\ntest/=src/test\n"
-                                                  "interfaces/=src/interfaces\nclones/=lib/c/src/\n")
+    (ws / "Cooler" / "src" / "test").mkdir(parents=True)
+    (ws / "Cooler" / "remappings.txt").write_text("test/=src/test\ninterfaces/=src/interfaces\nclones/=lib/c/src/\n")
     (ws / "Cooler" / "foundry.toml").write_text("[profile.default]\nsrc = 'src'\nlibs = ['lib']\n")
+    for t in ("Clearinghouse", "Cooler", "CoolerFactory"):
+        (ws / "Cooler" / "src" / "test" / f"{t}.t.sol").write_text(
+            'import {A} from "test/lib/A.sol";\nimport {B} from "test/mocks/B.sol";\nimport "src/Cooler.sol";\n')
     applied = poco.apply_build_fixes(ws, finding("049", "Cooler"))
-    assert len(applied) == 3
-    remaps = (ws / "Cooler" / "remappings.txt").read_text()
-    assert "test/=src/test/\n" in remaps and "interfaces/=src/interfaces/\n" in remaps
-    toml = (ws / "Cooler" / "foundry.toml").read_text()
-    assert "test = 'src/test'" in toml and "lint_on_build = false" in toml
+    assert len(applied) == 5
+    assert "interfaces/=src/interfaces/\n" in (ws / "Cooler" / "remappings.txt").read_text()
+    assert "lint_on_build = false" in (ws / "Cooler" / "foundry.toml").read_text()
+    t = (ws / "Cooler" / "src" / "test" / "Cooler.t.sol").read_text()
+    assert '"src/test/lib/A.sol"' in t and '"src/test/mocks/B.sol"' in t and '"src/Cooler.sol"' in t
+    assert "test = " not in (ws / "Cooler" / "foundry.toml").read_text()   # forge's default test/ stays
     with pytest.raises(RuntimeError, match="049"):
         poco.apply_build_fixes(ws, finding("049", "Cooler"))     # already applied: refuses
     assert poco.apply_build_fixes(ws, finding("054")) == []
