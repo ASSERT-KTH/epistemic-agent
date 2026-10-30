@@ -67,9 +67,22 @@ DATASET = Path(os.environ.get("POP_DATASET", "/mnt/ssd2/sofia/Proof-of-Patch"))
 # node_modules installed for the PoCo re-run (claude-new-run), reused so the
 # preparation needs no network and resolves the same package versions.
 PRIOR_WORKSPACES = Path(os.environ.get("POCO_PRIOR_RUN", "/mnt/ssd2/sofia/claude-new-run/full_20261006_103919"))
-EXCLUDED = {
-    "046": "needs a mainnet-fork RPC, i.e. network inside the sandbox",
-    "049": "bundled tests need OlympusMocks.sol, which does not resolve (build infrastructure)",
+# Excluded until 2026-10-30; both added back for the paper (experiments/E4/NOTES.md).
+EXCLUDED: dict[str, str] = {}
+# 046 needs a mainnet fork: its runs and grading use the sandbox profile with the
+# host network and a local anvil fork at bwrap_sandbox.LOCAL_RPC_URL (documented exception).
+RPC_FINDINGS = {"046"}
+NETWORK_SENTENCE = "Commands run in a sandbox without network access."
+RPC_SENTENCE = ("Commands run in a sandbox. An Ethereum mainnet RPC endpoint for forking is available "
+                "in the environment variable MAINNET_RPC_URL.")
+# Build-configuration fixes applied when the base workspace is prepared (never to
+# contracts or tests). 049: two remappings lack their trailing slash, forge drops
+# `test/` unless the test directory is declared, and forge's linter fails the build
+# on the vendored olympus-v3 library's own import paths.
+BUILD_FIXES: dict[str, list[tuple[str, str, str]]] = {
+    "049": [("Cooler/remappings.txt", "test/=src/test\n", "test/=src/test/\n"),
+            ("Cooler/remappings.txt", "interfaces/=src/interfaces\n", "interfaces/=src/interfaces/\n"),
+            ("Cooler/foundry.toml", "libs = ['lib']\n", "libs = ['lib']\ntest = 'src/test'\n\n[lint]\nlint_on_build = false\n")],
 }
 CONFIGS = {"C1": {"patch": False, "give_up": False}, "C2": {"patch": False, "give_up": True},
            "C3": {"patch": True, "give_up": False}, "C4": {"patch": True, "give_up": True}}
@@ -101,10 +114,13 @@ class Finding:
 
 
 def _foundry_root(repo: Path, main_contract: str) -> str | None:
-    """The directory holding foundry.toml from which `main_contract` resolves."""
+    """The directory holding foundry.toml from which `main_contract` resolves;
+    the repo root if it has no foundry.toml but follows forge's default layout (046)."""
     for toml in [*repo.glob("foundry.toml"), *repo.glob("*/foundry.toml")]:
         if (toml.parent / main_contract).exists():
             return str(toml.parent.relative_to(repo))
+    if not list(repo.glob("*/foundry.toml")) and (repo / main_contract).exists() and (repo / "lib").is_dir():
+        return "."
     return None
 
 
@@ -178,11 +194,12 @@ def _copy_node_modules(ws: Path, finding: Finding) -> list[str]:
     return copied
 
 
-def forge(args: list[str], cwd: Path, timeout: int, sandboxed: bool) -> subprocess.CompletedProcess:
+def forge(args: list[str], cwd: Path, timeout: int, sandboxed: bool,
+          profile: str = "foundry") -> subprocess.CompletedProcess:
     """forge on the host (preparation: may download solc) or in the E4 sandbox."""
     if sandboxed:
         cmd = "forge " + " ".join(args)
-        return bwrap_sandbox.run(cmd, cwd, timeout, "foundry")
+        return bwrap_sandbox.run(cmd, cwd, timeout, profile)
     try:
         return subprocess.run([FORGE, *args], cwd=cwd, capture_output=True, text=True, timeout=timeout,
                               env={**os.environ, "FOUNDRY_DISABLE_NIGHTLY_WARNING": "1"})
@@ -205,6 +222,7 @@ def prepare(finding: Finding, base_root: Path, force: bool = False) -> dict[str,
     for gm in ws.rglob(".git"):             # submodule pointers (files) would confuse git
         shutil.rmtree(gm) if gm.is_dir() else gm.unlink()
     removed = _prune(ws, finding)
+    build_fixes = apply_build_fixes(ws, finding)
     node_modules = _copy_node_modules(ws, finding)
     froot = ws / finding.foundry_root
     t0 = time.time()
@@ -223,13 +241,29 @@ def prepare(finding: Finding, base_root: Path, force: bool = False) -> dict[str,
     _git(ws, "commit", "-q", "-m", f"Proof-of-Patch {finding.id} ({finding.repo}), pruned and pre-built")
     info = {"finding": finding.id, "repo": finding.repo, "foundry_root": finding.foundry_root,
             "main_contract": finding.main_contract, "poc_path": finding.poc_path,
-            "pruned": removed, "node_modules_from_prior_run": node_modules,
+            "pruned": removed, "build_fixes": build_fixes, "node_modules_from_prior_run": node_modules,
             "host_build_ok": build.returncode == 0, "host_build_s": host_build_s,
             "sandbox_build_ok": check.returncode == 0, "sandbox_build_s": sandbox_build_s,
             "files": sum(len(f) for d, _, f in os.walk(ws) if "/.git" not in d and "node_modules" not in d),
             "dataset_commit": dataset_commit(), "prepared_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     info_file.write_text(json.dumps(info, indent=2) + "\n")
     return info
+
+
+def apply_build_fixes(ws: Path, finding: Finding) -> list[str]:
+    applied = []
+    for rel, old, new in BUILD_FIXES.get(finding.id, []):
+        f = ws / rel
+        text = f.read_text()
+        if text.count(old) != 1:
+            raise RuntimeError(f"{finding.id}: build fix for {rel} does not apply")
+        f.write_text(text.replace(old, new))
+        applied.append(f"{rel}: {old.strip()!r} -> {new.strip()!r}")
+    return applied
+
+
+def sandbox_profile(finding: Finding) -> str:
+    return "foundry-rpc" if finding.id in RPC_FINDINGS else "foundry"
 
 
 def patch_diff(finding: Finding, base_ws: Path) -> str:
@@ -259,7 +293,8 @@ def task_prompt(finding: Finding, config: str) -> str:
              (PROMPTS / "task.md").read_text().strip().format(
                  foundry_root=froot, main_contract=finding.main_contract,
                  contract_path=str(Path(froot) / finding.main_contract), poc_path=finding.poc_path,
-                 poc_rel=POC_REL, annotation=finding.annotation)]
+                 poc_rel=POC_REL, annotation=finding.annotation,
+                 network=RPC_SENTENCE if finding.id in RPC_FINDINGS else NETWORK_SENTENCE)]
     if cfg["patch"]:
         parts.append((PROMPTS / "patch.md").read_text().strip())
     if cfg["give_up"]:
@@ -295,7 +330,7 @@ def _forge_summary(output: str) -> dict[str, object]:
 
 def _poc_test(scratch: Path, finding: Finding, log: Path) -> dict[str, object]:
     r = forge(["test", "--match-path", POC_REL, "-vv"], scratch / finding.foundry_root, GRADE_TIMEOUT_S,
-              sandboxed=True)
+              sandboxed=True, profile=sandbox_profile(finding))
     log.write_text(r.stdout + r.stderr)
     return {"returncode": r.returncode, **_forge_summary(r.stdout + r.stderr)}
 
@@ -418,7 +453,8 @@ def protect_globs(finding: Finding, patch: bool) -> list[str]:
 def agent_argv(cfg: RunConfig, config: str, finding: Finding, ws: Path, run: Path, message: str) -> list[str]:
     protect = protect_globs(finding, CONFIGS[config]["patch"])
     argv = [*cfg.agent, "--workspace", str(ws), "--out-dir", str(run),
-            "--task-id", f"poco/{config}/{finding.id}", "--policy", "monitor", "--sandbox", cfg.sandbox,
+            "--task-id", f"poco/{config}/{finding.id}", "--policy", "monitor",
+            "--sandbox", cfg.sandbox + ("-rpc" if finding.id in RPC_FINDINGS else ""),
             "--endpoint", cfg.endpoint, "--key-env", cfg.key_env,
             "--max-cost-usd", str(cfg.max_cost_usd), "--effort", cfg.effort, "--thinking", cfg.thinking]
     for glob in protect:

@@ -17,6 +17,12 @@ address space: forge reserves virtual memory per thread and aborted under
 --as caps of 2, 4 and 6 GiB on a 36-core host while using 0.4 GB resident;
 RLIMIT_DATA counts what is actually allocated (a 6 GiB Python allocation
 still fails with MemoryError under the 4 GiB cap).
+
+Profile "foundry-rpc" (E4, finding 046 only) is "foundry" plus the host's network,
+so forge can fork mainnet through a local RPC (MAINNET_RPC_URL, an anvil fork run
+on the host by the experiment script; the provider's URL and key stay outside).
+A documented exception: with the network, effects outside the workspace are no
+longer guaranteed to be visible.
 """
 from __future__ import annotations
 
@@ -33,7 +39,8 @@ SYSTEM_DIRS = ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/etc")
 # 1 GB memory limit; address space counts more than resident memory, hence 2 GiB.
 MEMORY_LIMIT_BYTES = 2 * 1024 ** 3
 
-PROFILES = ("default", "foundry")
+PROFILES = ("default", "foundry", "foundry-rpc")
+LOCAL_RPC_URL = "http://127.0.0.1:8545"
 FOUNDRY_BIN = Path.home() / ".foundry" / "bin"
 SVM_DIR = Path.home() / ".local" / "share" / "svm"      # svm-rs: $XDG_DATA_HOME/svm
 FOUNDRY_DATA_LIMIT_BYTES = 4 * 1024 ** 3
@@ -60,7 +67,7 @@ def argv(command: str, workspace: Path, timeout_s: int, profile: str = "default"
     path = "/opt/epistemic/bin:/usr/local/bin:/usr/bin:/bin"
     limit = f"--as={MEMORY_LIMIT_BYTES}"
     env: list[str] = []          # after --clearenv, which drops everything set before it
-    if profile == "foundry":
+    if profile in ("foundry", "foundry-rpc"):
         # Fixed mount points, so nothing about the host's home leaks into the
         # agent's view; svm is found through XDG_DATA_HOME (HOME is /tmp).
         parts += ["--ro-bind", str(FOUNDRY_BIN), "/opt/foundry/bin",
@@ -69,6 +76,9 @@ def argv(command: str, workspace: Path, timeout_s: int, profile: str = "default"
                 "--setenv", "FOUNDRY_DISABLE_NIGHTLY_WARNING", "1"]
         path = "/opt/foundry/bin:" + path
         limit = f"--data={FOUNDRY_DATA_LIMIT_BYTES}"
+    if profile == "foundry-rpc":
+        parts += ["--share-net"]
+        env += ["--setenv", "MAINNET_RPC_URL", LOCAL_RPC_URL]
     return parts + [
         "--dir", "/opt/epistemic/bin",
         "--symlink", "/usr/bin/python3", "/opt/epistemic/bin/python",   # `python` -> python3

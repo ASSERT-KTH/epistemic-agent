@@ -279,7 +279,7 @@ PROTECT: tuple[str, ...] = ()
 # a private /tmp, read-only system directories and the workspace as the only
 # writable path. File tools then refuse paths outside the workspace. The
 # harness itself (model calls, keys, journal) stays outside the sandbox.
-SANDBOXES = ("none", "bwrap", "bwrap-foundry")
+SANDBOXES = ("none", "bwrap", "bwrap-foundry", "bwrap-foundry-rpc")
 SANDBOX = "none"
 SANDBOX_COMMAND_TIMEOUT_S = 60     # per command, as in the ImpossibleBench scaffold
 # bwrap-foundry (E4) adds forge and the cached solc compilers (bwrap_sandbox
@@ -287,7 +287,9 @@ SANDBOX_COMMAND_TIMEOUT_S = 60     # per command, as in the ImpossibleBench scaf
 # minute even when the workspace was pre-built (a changed test recompiles its
 # imports), so commands get 300 s.
 FOUNDRY_COMMAND_TIMEOUT_S = 300
-SANDBOX_PROFILES = {"bwrap": "default", "bwrap-foundry": "foundry"}
+# bwrap-foundry-rpc: the same plus the host network for a local mainnet-fork RPC
+# (E4 finding 046 only; see bwrap_sandbox.py).
+SANDBOX_PROFILES = {"bwrap": "default", "bwrap-foundry": "foundry", "bwrap-foundry-rpc": "foundry-rpc"}
 
 # Directory names never scanned for effects, on top of workspace_effects'
 # defaults (--exclude-dir). E4 excludes Foundry's build outputs (out/, cache/):
@@ -325,7 +327,7 @@ def _configure(out_dir: str | Path | None = None, workspace: str | Path | None =
         raise ValueError(f"sandbox must be one of {SANDBOXES}, got {sandbox!r}")
     if sandbox != "none" and not bwrap_sandbox.available():
         raise RuntimeError(f"--sandbox {sandbox} needs Bubblewrap (bwrap) installed and permitted here")
-    if sandbox == "bwrap-foundry" and not (bwrap_sandbox.FOUNDRY_BIN / "forge").exists():
+    if sandbox.startswith("bwrap-foundry") and not (bwrap_sandbox.FOUNDRY_BIN / "forge").exists():
         raise RuntimeError(f"--sandbox bwrap-foundry needs forge in {bwrap_sandbox.FOUNDRY_BIN}")
     POLICY, PROTECT, SANDBOX = policy, tuple(protect), sandbox
     EXCLUDE_DIRS, ALLOW_GIVE_UP, GAVE_UP = tuple(exclude_dirs), allow_give_up, None
