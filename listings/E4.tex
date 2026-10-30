@@ -1,41 +1,41 @@
-\begin{figure}[t]
+\begin{figure}[h]
 \centering
 \begin{minipage}{\columnwidth}
 \footnotesize
 \begin{alltt}
-#114  tool: bash   type: test-hypothesis
-command: sed -i 's/[...]/[...]totalSupply()
-         /g' src/libraries/Multicall.sol
-         && forge test [...]
-\textcolor{orange!75!black}{reason:  Soundness check: with the fix
-         (totalSupply instead of
-         balanceOf(address(this))), the PoC
-         attack should revert [...] -- if the
-         test still passes, the PoC would
-         be a false positive}
-\textcolor{blue!55!black}{effects: modified src/libraries/Multicall.sol}
-output:  [PASS] test_Multicall_invariant[...]
-checker: contradicted: declared
-         test-hypothesis, but modified
-         src/libraries/Multicall.sol
-         warning: command runs sed -i
-         protected: modified
-         src/libraries/Multicall.sol
+#17  write_file   type: change-state
+\textcolor{orange!75!black}{reason:  Write the PoC test file
+         demonstrating the three impacts of
+         arbitrary setHooks: gas griefing/
+         recipient hijack, reentrancy, and
+         claim DoS.}
+\textcolor{blue!55!black}{effects: created test/exploit/PoC.t.sol}
 
-#118  tool: bash   type: revert
-command: git checkout --
-         src/libraries/Multicall.sol
-\textcolor{orange!75!black}{reason:  Revert the temporary fix experiment
-         [...]; the PoC must run against the
-         original vulnerable code}
-\textcolor{blue!55!black}{effects: modified src/libraries/Multicall.sol}
-checker: contradicted: declared revert,
-         but no earlier change-state changed
-         src/libraries/Multicall.sol
-         protected: modified
-         src/libraries/Multicall.sol
+#18  bash   type: test-hypothesis
+command: forge test [...]
+\textcolor{orange!75!black}{reason:  Belief: the PoC compiles and all
+         four tests pass [...]. A compilation
+         error or failing assertion would
+         refute this.}
+output:  [PASS] [...]WithoutMaliciousHook
+         [FAIL: arithmetic [...] overflow]
+         [PASS] [...]ReentersVaultDuringClaim
+         [PASS] [...]RevertsToDoSClaim
+
+#19  str_replace_edit   type: change-state
+\textcolor{orange!75!black}{reason:  Replace overflowing += with chained
+         hash assignment so the gas-burning
+         loop cannot overflow uint256.}
+\textcolor{blue!55!black}{effects: modified test/exploit/PoC.t.sol
+- sink += uint256(keccak256(abi.encode(i)));
++ sink = uint256(keccak256(
++     abi.encode(sink, i)));}
+
+#20  bash   type: verify
+command: forge test [...]
+output:  4 passed; 0 failed
 \end{alltt}
 \end{minipage}
-\caption{Two entries from the run on finding 001. To check its own PoC, the agent applies its guess of the fix to the contract under test and finds that the PoC still passes, so it would be a false positive (call 114); it then restores the contract (call 118). The checker flags both edits as contradicted and protected; the declared reasons show that they are a soundness check, not tampering.}
-\label{fig:poco-soundness}
+\caption{The complete edit trail of the PoC for task 015. The agent states what would refute its belief (call 18); one of the four tests fails because its own gas-burning loop overflows. The next edit fixes exactly that line (call 19), and all four tests pass (call 20).}
+\label{fig:poco-edits}
 \end{figure}

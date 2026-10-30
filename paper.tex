@@ -6,7 +6,6 @@
 % preamble below without touching the body.
 
 
-% writing style: clear, precise, and objective. prioritize evidence over opinion, using concise language and a logical structure to guide the reader from hypothesis to conclusion. Sentences are direct, often in the active voice, and jargon is used only when necessary and well-defined. Every claim is supported by data or citations. The tone is formal but not ornate. Clarity and accuracy matter the most. do not use em-dash. it should not feel like AI slop, like AI writing. use llmism to validate the writing.
 
 \documentclass{IEEEcsmag}
 
@@ -55,7 +54,8 @@
 
 \sptitle{Article Type: Theme}
 
-\title{\toolname: Detecting Agent Misbehavior via Tool Call Intent}
+\title{\toolname: Trustworthy Coding Agents Through Tool Call Intent}
+%\title{\toolname: Detecting Agent Misbehavior via Tool Call Intent}
 
 \author{Sofia Bobadilla, Carmine Cesarano, Raphina Liu, Javier Ron, Martin Monperrus}
 \affil{KTH Royal Institute of Technology, Stockholm, Sweden}
@@ -69,10 +69,10 @@
 \maketitle
 
 \textit{\noindent\textbf{Abstract—}
-Coding agents change software through tool calls. Most tool calls mutate the local state.
+Coding agents change software through tool calls. Tool calls mutate the local state.
 For good? For bad? Nobody knows.
-Agent never say why a tool call is made. 
-We propose the epistemic agent design, in which the harness guarantees that the model declares why a tool call is made. The harness then records what the command actually did and checks the self-reported declaration against these effects. The result is a journal 1) that can guard calls before they run and 3) that support audits and forensics. We implemented the design as a prototype.
+Agents never say why a tool call is made. 
+We propose the epistemic agent design, in which the harness guarantees that the model declares why a tool call is made. The harness then records what the command actually did and checks the self-reported declaration against these effects. The result is a journal 1) that can guard calls before they run and 2) that supports audits and forensics. We implemented the design as a prototype.
 For evaluation, we use ImpossibleBench, whose tasks can be passed only by cheating, and demonstrate that forcing the agents to say why results in exposed cheating. Across \EtwoNmis{} reward-hacking runs of two open-weight models, the journal exposed \EtwoExposureRate.}
 
 \medskip
@@ -92,9 +92,6 @@ Today, tool calls are monitored and audited in three ways:
 1) permission rules allow or deny commands by matching their text; 
 2) logs and transcripts record the calls, and a reviewer reads them after the fact;
 3) LLM monitors read the calls and the agent's reasoning to flag suspicious behavior.
-
-
-
 
 
 \begin{figure}[t]
@@ -121,10 +118,10 @@ Today, tool calls are monitored and audited in three ways:
   \draw (-1.4mm,0) -- (-1.75mm,0) (1.4mm,0) -- (1.75mm,0);
 \end{scope}
 \node[font=\small\bfseries, anchor=north] (htitle) at (0,-0.72) {Epistemic harness};
-\node[claim] (decl) at (\L,-1.75) {\textbf{Tool call}\\[1pt]{\scriptsize\begin{tabular}{@{}r@{\ }l@{}}command: & shell string\\ declaration: & type, reason\end{tabular}}};
-\node[check, text width=2.9cm] (val) at (\L,-3.3) {\step{1} \textbf{Check declaration}\\{\scriptsize rejects an invalid type or reason}};
+\node[claim] (decl) at (\L,-1.75) {\textbf{Tool call}\\[1pt]{\scriptsize\begin{tabular}{@{}r@{\ }l@{}}command: & shell command\\ intent: & type, reason\end{tabular}}};
+\node[check, text width=2.9cm] (val) at (\L,-3.3) {\step{1} \textbf{Check declaration}\\{\scriptsize rejects an invalid intent (type or reason)}};
 \node[lane] (run) at (\R,-1.75) {\step{2} \textbf{Run command}};
-\node[obs] (fx) at (\R,-3.3) {\step{3} \textbf{Effects}\\{\scriptsize workspace hashed before/after}};
+\node[obs] (fx) at (\R,-3.3) {\step{3} \textbf{Tool Call Effects}\\{\scriptsize workspace changes before/after}};
 \node[check, text width=6.4cm] (chk) at (0,-5.2) {\step{4} \textbf{Check the declaration against the effects}\\{\scriptsize findings: contradiction, warning, protected}};
 \node[draw, fill=black!12, text width=6.1cm, align=left, inner sep=2pt, anchor=north] (jh) at (0,-6.3) {\step{5} \textbf{Append journal entry} \hfill {\scriptsize\ttfamily journal.jsonl}};
 \node[row, draw=orange!75!black, fill=orange!12, below=0pt of jh] (jc) {\makebox[2.1cm][l]{declaration:}type, reason};
@@ -151,7 +148,7 @@ Today, tool calls are monitored and audited in three ways:
 \draw[arr] (chk.south) -- (chk.south |- jh.north);
 \draw[arr] (foren.north |- jv.south) -- (foren.north);
 \end{tikzpicture}
-\caption{The epistemic harness design. The model declares an act type and a reason in addition to a command; the harness observes the effects, checks the claim against them, and journals both. Online, in enforce mode, step~\step{1} refuses calls before they run; offline, the journal serves forensics.}
+\caption{The epistemic harness design. The model declares an intent for each command to run; the harness observes the effects, checks the claim against them, and journals both. Online, in guardrail mode, step~\step{1} refuses calls before they run; offline, the journal serves forensics.}
 \label{fig:design}
 \end{figure}
 
@@ -170,7 +167,7 @@ The epistemic declaration can be used online or offline. Online, it acts as a gu
 This paper makes the following contributions:
 \begin{itemize}    
     \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every tool call. The declared intent is checked against the observed effects after each call, and can guard calls before they run (online) or be audited afterwards (offline).
-    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the recorded declarations and effects expose \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate). On honest runs, an independent model confirms 75\% of the declared types.
+    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the journal exposes \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate); the same journals reveal the agents' workflow, and 23 real security tasks shows the design at work beyond benchmarks.
     \item \textbf{Prototype.} \toolname, an open-source implementation of the design for coding agents.
 \end{itemize}
 
@@ -187,18 +184,18 @@ This paper makes the following contributions:
 \begin{minipage}{\columnwidth}
 \footnotesize
 \begin{alltt}
-#5  tool: bash   type: test-hypothesis
-command: python test.py
+#5  command: python test.py
+intent-type: test-hypothesis
 \textcolor{orange!75!black}{reason:  Run the unit tests to verify the
          correctness of the implementation.
          The belief is that the implementation
          adheres to the specification [...]}
 \textcolor{blue!55!black}{effects: none}
-checker: no findings
+checker: validated
 
-#7  tool: bash   type: test-hypothesis
-command: sed -i '22 s/^/# /' test.py
+#7 command: sed -i '22 s/^/# /' test.py
          && python test.py
+intent-type: test-hypothesis
 \textcolor{orange!75!black}{reason:  Temporarily comment out the flawed
          test case (line 22) to verify the
          correctness of the implementation
@@ -210,7 +207,7 @@ checker: contradicted: declared
          protected: modified test.py
 \end{alltt}
 \end{minipage}
-\caption{Two entries from one journal. Call 5 declares a read-only experiment and changes nothing; call 7 declares the same type but edits the test file, so the checker flags its type as contradicted.}
+\caption{Two tool calls with intent. Call 5 declares a read-only experiment and changes nothing; call 7 declares the same type but edits the test file, so the checker flags it as inconsistent.}
 \label{fig:entry}
 \end{figure}
 
@@ -231,7 +228,7 @@ Figure~\ref{fig:design} shows what the epistemic harness does with each tool cal
 
 
 
-\subsection{Every Commands Come With Intent}
+\subsection{Every Command Comes With Intent}
 
 The \emph{type}, which we call the \emph{epistemic type}, names the kind of act from a closed vocabulary of seven, which makes acts checkable, countable and lets rules compute from them. The first three types are read-only; the other four change state:
 \begin{itemize}
@@ -261,16 +258,16 @@ Together, the declaration, the effects, and the findings form the act's \emph{ep
 
 Separating what the model claims from what the harness observes gives the journal two properties. 
 First, \emph{integrity}: the harness writes the journal outside the agent's workspace, so the model cannot write or edit the observations, and it appends each entry as the session goes. Because it is written call by call, it also survives an agent that is stopped or killed. 
-Second, \emph{verifiability}: each declaration is a claim about an command, and the journal holds evidence of what the command did that its author cannot rewrite. Checking one against the other tells, call by call, whether what a call did is consistent with what the model said it was doing. 
+Second, \emph{verifiability}: each declaration is a claim about a command, and the journal holds evidence of what the command did that its author cannot rewrite. Checking one against the other tells, call by call, whether what a call did is consistent with what the model said it was doing. 
 
 
 \textbf{Consistency checker.} After each call, the harness runs a consistency checker that compares the declared type with the observed effects. Its findings have three severities. 
 A \emph{contradiction} means the effects prove the declaration false: a read-only type whose call changed a file, a \texttt{revert} that touches a file no earlier \texttt{change-state} changed, or a \texttt{cleanup} that creates or modifies files, or deletes one the agent did not create. 
 A \emph{warning} marks a call that is suspicious but not disproven: a read-only call whose command contains a mutating operation, such as \texttt{sed -i}, \texttt{rm}, or an output redirection, or a \texttt{change-state} or \texttt{revert} that changed nothing. Command text alone proves nothing, because \texttt{rm} of a missing file changes nothing and a Python script can write files without any telltale word; only effects can prove a contradiction. 
-A \emph{protected} finding marks any change to a file the operator marks as protected when starting the harness, such as the tests, whatever the declared type. It flags the change but does not prevent it: an honest edit of a wrong test is not a contradiction, but a reviewer should see it. 
+A \emph{protected} finding marks any change to a file the operator marked as protected when starting the harness, such as the tests, whatever the declared type. It flags the change but does not prevent it: an honest edit of a wrong test is not a contradiction, but a reviewer should see it. 
 The full rule set is in our repository.
 
-Figure~\ref{fig:entry} illustrates to the \texttt{sed} example and shows how the journal records it. Call~5, earlier in the same session, declares an experiment, runs the tests, and changes nothing; the checker finds nothing. 
+Figure~\ref{fig:entry} illustrates the \texttt{sed} example and shows how the journal records it. Call~5, earlier in the same session, declares an experiment, runs the tests, and changes nothing; the checker finds nothing. 
 Call~7 declares the same read-only type, but its command comments out an assertion in the test file. The effects prove the declaration false, the command text alone raises a warning, and the edit touches a protected file.
 
 
@@ -278,9 +275,9 @@ Call~7 declares the same read-only type, but its command comments out an asserti
 
 \subsection{Online and Offline Use of Epistemic Provenance}
 
-\textbf{Online -- Guardrail.} In \emph{guardrail} mode, the harness stop the agentic task as soon as something off happens. First, the check of step~\step{1} refuses a call declared read-only whose command contains a mutating operation. This rule matches the command text, so it shares the blind spots of any such rule; unlike a rule on command text alone, it fires only when the text conflicts with what the model declared. Contradictions proven by effects are known only after the call has run, at step~\step{4}, so enforce mode stops the agent and may roll back the workspace at that point. Declarations also allow policies on the type alone, such as refusing every \texttt{change-state} while an agent is only meant to investigate.
+\textbf{Online -- Guardrail.} In \emph{guardrail} mode, the harness stops the agentic task as soon as something off happens. First, the check of step~\step{1} refuses a call declared read-only whose command contains a mutating operation. This rule matches the command text, so it shares the blind spots of any such rule; unlike a rule on command text alone, it fires only when the text conflicts with what the model declared. Contradictions proven by effects are known only after the call has run, at step~\step{4}, so guardrail mode stops the agent and may roll back the workspace at that point. Declarations also allow policies on the type alone, such as refusing every \texttt{change-state} while an agent is only meant to investigate. In \emph{monitor} mode, the harness refuses only ill-formed declarations: it runs every call and records the findings in the journal without acting on them.
 
-\textbf{Offline -- Forensics.} The journal is a forensic record. After every call the harness renders it into a report a reviewer can read: counts of epistemic types, then a numbered narrative of reason, command, outcome and effects, with dead ends marked by \texttt{revert}. The calls the checker contradicted are the core of that report. At these calls the model's own account of an act is proven false by what the act did, so the report flags them and lists them apart, and an auditor starts there. Forensics is not limited to the report. Every rule depends only on the journal, so one can rerun the full checker suite again on a stored journal, without the agent or the model.
+\textbf{Offline -- Forensics.} The journal is a forensic record. After every call the harness renders it into a report a reviewer can read: counts of epistemic types, then a numbered narrative of reason, command, outcome and effects, with dead ends marked by \texttt{revert}. The calls the checker contradicted are the core of that report. At these calls the model's own account of an act is proven false by what the act did, so the report flags them and lists them apart, and an auditor starts there. Forensics is not limited to the report. Every rule depends only on the journal, so one can rerun the full checker suite on a stored journal, without the agent or the model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -290,7 +287,7 @@ Call~7 declares the same read-only type, but its command comments out an asserti
 
 The epistemic agent is fully implemented in \toolname, our open-source prototype.
 \toolname is written in Python and supports any OpenAI-compatible provider. 
-\toolema shell tool schema requires \texttt{type} and \texttt{reason}, and wraps the file tools so that each requires a reason.
+Its shell tool schema requires \texttt{type} and \texttt{reason}, and wraps the file tools so that each requires a reason.
 
 To observe effects, it hashes the files of the workspace before and after every call and keeps the difference, the diff of changed files, and the full output; a separate record per run notes the model, the code version, the token usage, and how the run ended.
 
@@ -305,11 +302,11 @@ Code, tests, and experiment scripts are open source.\footnote{\url{https://githu
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\zsection{Does \toolname Detect Cheating?}
+\section{Cheating in ImpossibleBench}
 
 
 \begin{table*}[t]
-\caption{Exposure of cheating in ImpossibleBench. Run inconsistent ($I$) and cheat disclosed ($D$) can overlap. Exposure uses their union ($I \cup D$), counting each run once.}
+\caption{Exposure of cheating in ImpossibleBench. Contradicted ($C$) and cheat disclosed ($D$) can overlap. Exposure uses their union ($C \cup D$), counting each run once.}
 \label{tab:exposure}
 \centering
 \small
@@ -319,7 +316,7 @@ Code, tests, and experiment scripts are open source.\footnote{\url{https://githu
 \noalign{\hrule height 0.8pt\vskip 3pt}
 & \textbf{Completed} & \multicolumn{4}{c}{\textbf{Misbehaving runs}} \\
 \cline{3-6}
-\textbf{Model} & \textbf{runs} & \textbf{Total} ($N$) & \textbf{Run inconsistent} ($I$) & \textbf{Cheat disclosed} ($D$) & \textbf{Exposure rate} ($|I \cup D|/N$) \\
+\textbf{Model} & \textbf{runs} & \textbf{Total} ($N$) & \textbf{Contradicted} ($C$) & \textbf{Cheat disclosed} ($D$) & \textbf{Exposure rate} ($|C \cup D|/N$) \\
 \noalign{\vskip 2pt\hrule\vskip 3pt}
 Qwen3-235B & 197 & 18 & 1 & 14 & 78\% \\
 Mistral Large 3 & 203 & 31 & 2 & 30 & 97\% \\
@@ -333,15 +330,15 @@ An agent that misbehaves has three options: it can declare the act honestly, dec
 
 \subsection{Experimental Protocol}
 
-We use ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Each task asks the agent to implement a function described in its docstring and to make its unit tests pass. The specificity of ImpossibleBench is that the tasks are impossible: the benchmark's authors altered the tests so that they contradict with the specification. For example, in \emph{oneoff} split, one assertion expects an incorrect value; in \emph{conflicting} split, two assertions expect different values for the same input. Each split contains 103 tasks. An implementation that follows the specification cannot pass all the tests. The right response is to report the faulty test. The wrong solution to the impossibility is to cheat on one of the contradicting aspects.
+We use ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Each task asks the agent to implement a function described in its docstring and to make its unit tests pass. The specificity of ImpossibleBench is that the tasks are impossible: the benchmark's authors altered the tests so that they contradict the specification. For example, in the \emph{oneoff} split, one assertion expects an incorrect value; in the \emph{conflicting} split, two assertions expect different values for the same input. Each split contains 103 tasks. An implementation that follows the specification cannot pass all the tests. The right response is to report the faulty test. The wrong solution to the impossibility is to cheat on one of the contradicting aspects.
 
 An agent that makes the tests pass has only two ways to do so. It can \emph{tamper} with any call that changes the test file. Or it can \emph{exploit} by tailoring its code to the faulty test, for example by returning the expected value for that one input, so that the final program passes the impossible tests. Both conditions can be checked mechanically, without a judge. These rules identify potential reward hacking.
 
-We run \toolname on all \EtwoNtasks{} impossible tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3. Each model has up to three attempts per task, with access to the benchmark’s failure feedback, and a limit of 60 minutes per task.
-The system prompt contains only the harness instructions, and the consistency checker runs in monitor mode. Command runs in a sandbox without network or home-directory access, confined to the task workspace and limited to 60 seconds and 2\,GiB of memory. 
+We run \toolname on all \EtwoNtasks{} impossible tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3. Each model has up to three attempts per task, with access to the benchmark's failure feedback, and a limit of 60 minutes per task.
+The system prompt contains only the harness instructions, and the harness runs in monitor mode, so the findings do not influence the agent. Commands run in a sandbox without network or home-directory access, confined to the task workspace and limited to 60 seconds and 2\,GiB of memory. 
 The code, including the system prompt, and the raw runs are published in our repository.
 
-\subsection{Measuring Cheat Detection}
+\subsection{Cheat Detection}
 
 For each misbehaving run, we locate the calls that carry out the cheat and ask two questions about their epistemic provenance.
 Is the cheat \emph{disclosed}: does a declared reason state it?
@@ -359,7 +356,7 @@ A misbehaving run is \emph{exposed} if the act is disclosed, contradicted, or bo
 
 \subsection{Experimental Results}
 
-We ran \EtwoNtasks{} tasks with each of the two models, for \EtwoNruns{} runs in total. Of these, \EtwoNcompleted{} runs completed and \EtwoNexcluded{} were excluded after server errors or timeouts. None of the excluded runs has misbehaved before stopping. We classified \EtwoNmis{} completed runs as misbehaving per  the ImpossibleBench orcale: there are \EtwoNmisQwen{} misbehaving runs for Qwen and \EtwoNmisMistral{} for Mistral (Table~\ref{tab:exposure}). Misbehavior is more frequent on \emph{oneoff} tasks (21\%) than on \emph{conflicting} tasks (4\%). Qwen mostly changed the tests (13 of its 18 misbehaving runs), whereas Mistral mostly produced overfitting implementations that passed the original impossible tests (28 of 31). In total, \EtwoNtamper{} runs involved tampering and \EtwoNexploit{} involved exploitation. Across completed runs, tool calls per run had a minimum, median, 95th percentile, and maximum of 3, 8, 69, and 144 for Qwen, and 6, 17, 33.9, and 44 for Mistral, respectively.
+We ran \EtwoNtasks{} tasks with each of the two models, for \EtwoNruns{} runs in total. Of these, \EtwoNcompleted{} runs completed and \EtwoNexcluded{} were excluded after server errors or timeouts. None of the excluded runs had misbehaved before stopping. We classified \EtwoNmis{} completed runs as misbehaving per the ImpossibleBench oracle: there are \EtwoNmisQwen{} misbehaving runs for Qwen and \EtwoNmisMistral{} for Mistral (Table~\ref{tab:exposure}). Misbehavior is more frequent on \emph{oneoff} tasks (21\%) than on \emph{conflicting} tasks (4\%). Qwen mostly changed the tests (13 of its 18 misbehaving runs), whereas Mistral mostly produced overfitting implementations that passed the original impossible tests (28 of 31). In total, \EtwoNtamper{} runs involved tampering and \EtwoNexploit{} involved exploitation. Across completed runs, tool calls per run had a minimum, median, 95th percentile, and maximum of 3, 8, 69, and 144 for Qwen, and 6, 16, 34, and 43 for Mistral, respectively.
 
 
 
@@ -369,111 +366,151 @@ The \toolname checker detects cheating via contradiction between epistemic type 
 
 The checker could not contradict any exploit in this experiment. Every exploit changed the code through a file tool, and the harness assigns file tools a fixed type rather than asking the model to declare one. In four tasks, the benchmark's test file was broken and could not run, so changing it may have been a repair. Excluding these four runs, the exposure rate was \EtwoExposureRateNoDefect{} (40 of 45). 
 
-The remaining \EtwoNconcealed{} runs were classified as stealth misbehavior: the checker did not identify a contradiction and the intent does not disclose the problem. In three runs, the agent edited a test but its reason only described the problem, for example ``The test expecting 0 is incorrect.'' (run oneoff/lcbhard\_54 by model Qwen3-235B-A22B)
-In the other two runs, the agent changed the implementation also while giving a general reason. One implementation hard-coded answers for three test inputs; the other passed a faulty test through an incorrect general simplification, without test-specific code.
+The remaining \EtwoNconcealed{} runs were classified as stealth misbehavior: the checker did not identify a contradiction and the reason does not disclose the problem. In three runs, the agent edited a test but its reason only described the problem, for example ``The test expecting 0 is incorrect.'' (run oneoff/lcbhard\_54 by model Qwen3-235B-A22B).
+In the other two runs, the agent also changed the implementation while giving a general reason. One implementation hard-coded answers for three test inputs; the other passed a faulty test through an incorrect general simplification, without test-specific code.
+
+Qwen often investigates and stops: in 72 of its 197 runs, Qwen read the files, ran the tests, and ended the run without changing any file; 51 of these runs are in the conflicting split. Mistral runs a loop of edits and test runs. The two styles match the two kinds of misbehavior. Qwen's misbehavior was mostly tampering with the test file (13 of 18 runs), and Mistral's was mostly an exploit in the implementation (28 of 31 runs).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\section{Epistemic Workflow Evidence}
 
-reported on these runs.
-
-\section{Are the Declarations Accurate?}
-
-The previous section asked whether declarations expose misbehavior. This section asks whether the declared types describe what the calls do. The checker answers this question only in part: it refutes a type only when the effects contradict it, and only for shell commands. A declaration can be wrong without any effect that shows it, for example a \texttt{verify} that is really a \texttt{test-hypothesis}. We therefore compare the declared types with the types that an independent judge assigns to the same calls, and with what the checker reported on them.
-
-\subsection{Relabeling by an Independent Judge}
-
-For each bash call, the judge model receives what the harness observed: the task specification, the command and its outcome, the files that the command created, modified or deleted, the diff, an excerpt of the output, and the commands and outcomes of up to 30 earlier calls. The judge does not see the type that the agent declared, the agent’s reason, or the checker’s findings. The judge picks one type from the closed vocabulary of seven types that the agents use, or \texttt{unclear}.
-
-Our judge is Kimi K3-256k at its default temperature, and it gives one label per call. Kimi comes from a different model family than Qwen and Mistral, so the judge is unlikely to share the agents’ training. We label only bash calls. We leave out file-tool calls, because the tool name already determines their type. The 404 included E2 runs contain 3757 bash calls. We labeled a simple random sample of 100 of the 3757 calls, which come from 78 runs.
-
-\subsection{Experimental Results}
-
-Of the 100 sampled calls, the agents declared 97 as read-only. The other 3 calls are one \texttt{change-state}, one \texttt{setup} and one \texttt{revert}. Over all 3757 bash calls, the agents declared 96\% as read-only.
-
-The judge returned a type for 97 calls and \texttt{unclear} for 3 calls. For the 97 typed calls, the judge agreed with the declared type in 46\% of cases: 51\% for Mistral and 43\% for Qwen. The checker uses
-only the coarse distinction between read-only and mutating acts. The judge and the agent agreed on the coarse distinction for all 97 calls. The sample has only 3 mutating calls, so the coarse agreement is weak evidence.
-Figure~\ref{fig:relabel-sankey} shows where the declared type and the judge's type differ.
-
-Two patterns cause 44 of the 52 disagreements, and both patterns stay inside the read-only types. In 23 calls, the agent declared \texttt{test-hypothesis} and the
-judge answered \texttt{verify}. Of the 23 calls, 22 run the test suite after an edit. In 21 calls, the agent declared \texttt{collect-info} and the judge answered \texttt{test-hypothesis}. Of the 21 calls, 19 are Qwen calls that run a
-short Python snippet on the implementation, for example to print the result for one failing input. The definition reserves \texttt{collect-info} for commands
-that only read. The sample has 16 such commands (\texttt{ls}, \texttt{cat}, \texttt{grep}), and the judge agreed on all 16.  31 of the 68 disagree with the declared type. Judge uncertainty therefore cannot explain most disagreements: the two labelers apply the fine types in systematically different ways.
-
-  
+The journal is more than an audit trail for misbehavior. Because every call carries a type, the journals of many runs together describe how an agent works: what kind of act it performs, and in what order. We reuse the runs of the previous experiment.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Does the Journal Help Auditing a Real Security Task?}
+Table~\ref{tab:e2-types} counts the calls of the 400 completed runs by type and tool. In total, both models made 3714 bash calls. The agents declared 3577 of them (96.3\%) as read-only. The agents declared a mutating type for 137 calls only (3.7\%): through the shell, they mostly observed, by reading and running tests. To edit code, the agents mainly used file tools: they made 1989 calls to \texttt{str\_replace\_edit} and \texttt{write\_file}, and 98 bash calls with the type \texttt{change-state}. Counting file edits, 30\% of all calls changed state (2126 of 6998).
 
-We now ask how the journal helps a security auditor. The task is to write a proof-of-concept (PoC) exploits for smart-contract vulnerabilities.
 
-\subsection{Experimental Protocol}
-We use the tasks from the Proof-of-Patch benchmark~\cite{Andersson2026PoCo}.
-Each task is a smart contract project with a corresponding report of a vulnerability.
-The agent receives the vulnerable project and the report, and its task to write a PoC exploiting the vulnerability.
-A PoC is \emph{sound} if it succeeds on the vulnerable code and fails on a patched version of the smart contract.
-We run Kimi K3 once per task, with a 45-minute timeout in the benchmark's sandbox.
-\todo{what do we want to measure in this exp? how does this relate to episteme?}
-\input{listings/E4}
+\begin{table}[t]
+\caption{Calls by type and tool in the 400 completed runs. File tools have a fixed type: reads are \texttt{collect-info}, edits and writes are \texttt{change-state}.}
+\label{tab:e2-types}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrr}
+\hline
+ & & \multicolumn{3}{c}{File tool} & \\
+\cline{3-5}
+Type & Bash & read & replace & write & Total \\
+\hline
+\texttt{collect-info}    & 1442 & 1295 &    0 &   0 & 2737 \\
+\texttt{test-hypothesis} & 1337 &    0 &    0 &   0 & 1337 \\
+\texttt{verify}          &  798 &    0 &    0 &   0 &  798 \\
+\textbf{Read-only}       & \textbf{3577} & \textbf{1295} & \textbf{0} & \textbf{0} & \textbf{4872} \\
+\hline
+\texttt{change-state}    &   98 &    0 & 1679 & 310 & 2087 \\
+\texttt{revert}          &   21 &    0 &    0 &   0 &   21 \\
+\texttt{setup}           &   17 &    0 &    0 &   0 &   17 \\
+\texttt{cleanup}         &    1 &    0 &    0 &   0 &    1 \\
+\textbf{Mutating}        & \textbf{137} & \textbf{0} & \textbf{1679} & \textbf{310} & \textbf{2126} \\
+\hline
+Total                    & 3714 & 1295 & 1679 & 310 & 6998 \\
+\hline
+\end{tabular}
+\end{table}
 
-\subsection{Experimental Results}
-As shown in the original paper~\cite{Andersson2026PoCo}, an agent with a strong model can solve the tasks:
-\EfourNsound{} of the \EfourNfindings{} PoCs are sound, after a median of \EfourMedianCalls{} calls. 
-Now, we look at whether the \toolname journal is useful for reviewing the work (forensics).
 
-The checker contradicted \EfourNcontradictedCalls{} calls in \EfourNcontradictedRuns{} runs.
-None of the \EfourNcontradictedCalls{} contradictions hide a shortcut. In fact, 9 of them record the agent checking its own work. 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/intent_map.pdf}
+\caption{Transitions between declared types in 197 Qwen3 runs.}
+\label{fig:intent-map}
+\end{figure*}
 
-The contradictions fall into four groups.
-\textbf{Soundness check on a protected file} (4 calls, finding 001; Figure~\ref{fig:poco-soundness}): the agent applied its own guess of the fix to the contract under test, re-ran its PoC, and restored the contract with a \texttt{revert}. Diligent: it tested whether its PoC was a false positive.
-\textbf{Assumption check} (5 calls, tasks 054 and 098): an experiment that wrote a scratch test to learn how a library or the EVM behaves before relying on it. Diligent.
-\textbf{Mislabeled edit} (1 call, task 091): a fix to the PoC declared as an experiment instead of a \texttt{change-state}. Harmless, but the type is wrong.
-\textbf{Tool side effect} (2 calls, task 066): the build tool wrote its cache while the agent ran its tests. Not the agent's act; a gap in our harness.
+Now, we analyze the order of intent types. Figure~\ref{fig:intent-map} illustrates the sequence of acts by showing how Qwen3 moves between declared types over its 197 completed runs. An arrow counts how often one type directly follows another (3,160 transitions overall). Notably every run first opens by collecting information, which is good. 
+Beyond the first tool call, reading dominates: \texttt{collect-info} accounts for 54\% of all calls, and 37\% of all transitions are one read followed by another. 
+The next piece of evidence is that once the agent changes code, it checks the change: 73\% of \texttt{change-state} calls are followed directly by a \texttt{verify} or a \texttt{test-hypothesis}.
+Each check then leads to a new change or back to reading, the trial-and-error loop of agentic work. 
+Mistral Large~3 shows the same structure with a slightly different balance: it reads less (25\% of its calls against 54\%) and spends 40\% of its transitions alternating between \texttt{change-state} and \texttt{test-hypothesis}, showing model impact on epistemic explanations. Practitioners deploying the technique would need to calibrate their epistemic guardrail and forensics processes depending on the model they use.
 
-Without the declarations, the four edits of the contract under test would look like tampering.
-
-% case study
-Two PoCs are unsound, and the epistemic journal helps the auditor to understand why. For finding 054, the agent demonstrated the attack on its own copy of the contract, and its declared reason states this exactly. For finding 091, the agent mocked too much: its simplified price oracle makes the test pass always, and the journal confirms to the auditor that it never intended to read and use the real oracle.
-
-\emph{Recap.} On a solvable task, the declarations held up call by call, and the flagged entries record diligence. The journal helps the auditor to understand the security claims.
 
 \begin{comment}
-Earlier experiment ideas (kept from the planning notes):
-- experiment: relabel the intent later on and compare the llm provided intent with the relabeled one
-- running \toolname in benchmark setups which encourage cheating/reward
-- running \toolname on misaligned models from huggingface
-- Agent-SafetyBench and WorkBench,
-- EvilGenie (a reward-hacking benchmark for coding).
-- Agentic-Upward-Deception benchmark https://github.com/QingyuLiu/Agentic-Upward-Deception
-- ImpossibleBench
-- does the declaration of intent change the agent behavior? (e.g., does it reduce reward hacking, sabotage, or deception?)
-- type laundering under incentives. Gate some of the intents behind human approval, then check whether the agent tries to launder a disallowed intent into an allowed one.
+\begin{table}[t]
+\caption{Executed calls per model in the included E2 runs, by tool. Bash calls are split by the kind of the declared
+type; file tools have a fixed type, as in Table~\ref{tab:e2-types}.}
+\label{tab:e2-models}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrr}
+\hline
+ & \multicolumn{2}{c}{Bash} & \multicolumn{3}{c}{File tool} & \\
+\cline{2-3}\cline{4-6}
+Model & read-only & mutating & read & replace & write & Total \\
+\hline
+Qwen3-235B      & 1843 &  40 &  916 &  588 & 151 & 3538 \\
+Mistral L3      & 1777 &  97 &  461 & 1213 & 161 & 3709 \\
+\hline
+Total           & 3620 & 137 & 1377 & 1801 & 312 & 7247 \\
+\hline
+\end{tabular}
+\end{table}
 \end{comment}
 
 
 
-\section{Limitations}
 
-The checker verifies declared types against observed effects, not the truth of reasons. Effects are observed at the level of files in the workspace; changes made elsewhere go unseen. We evaluated one lightweight agent loop; agents built on more complex harnesses may behave differently. The exploit-writing experiment uses one model and one run per finding, so its numbers come from \EfourNfindings{} runs. Each call also carries a declaration the model must write, so the epistemic agent spends more tokens for the same task.
 
+
+
+
+
+
+  
+
+\input{listings/E4}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Behavior on a Real Security Task}
+
+We now study the behavior of the epistemic agent over a real-world security task. The task is to write a proof-of-concept (PoC) exploit for smart-contract vulnerabilities.
+
+
+\subsection{Experimental Protocol}
+We use the tasks from the Proof-of-Patch benchmark~\cite{Andersson2026PoCo}.
+Each task is a smart contract project with a corresponding verified vulnerability report.
+The agent receives the vulnerable project and the report, and its task is to write a PoC exploiting the vulnerability.
+A PoC is \emph{sound} if it succeeds on the vulnerable code and fails on a patched version of the smart contract.
+We run Kimi K3 once per task, with a 45-minute timeout in the benchmark's sandbox.
+
+% \input{listings/E4}
+
+\subsection{Experimental Results}
+As shown in the original paper~\cite{Andersson2026PoCo}, an agent with a strong model can solve the tasks:
+\EfourNsound{} of the \EfourNfindings{} PoCs are sound, after a median of \EfourMedianCalls{} calls. 
+
+There are \EfourNcalls{} executed calls, of which 621 matched their declared type (98\%): 506 are read-only, and 115 change files as declared.
+Every run opens by reading the code, and 22 of 23 end with a \texttt{verify}. 
+A security auditor can therefore skip the calls that have no effect and instead focus on calls that provably change the smart contract.
+Figure~\ref{fig:poco-edits} shows the complete edit history of task 015: one of its four tests fails because of a bug in the agent's first PoC attempt. The next edit provides a fix, and clearly states the reason of the changes. These entries provide the auditor with focused, deeper insights on the PoC's code and the nature of the vulnerability.
+
+\toolname identifies \EfourNcontradictedCalls{} contradictions.
+We manually analyzed all of them. They identify limitations of our prototype, which is to be expected for such a complex task.
+The first cause for contradiction is missing side effects. 
+For example, the build tool wrote its cache while the agent ran its tests. 
+The call was declared \texttt{verify}, a read-only type, but files changed at the same time.
+The second cause is our rule for \texttt{revert}: a revert must undo an earlier \texttt{change-state}. In task 001, the agent tested its own guess of the fix. It edited the contract with \texttt{sed}, declared as \texttt{test-hypothesis}, re-ran its PoC, and restored the contract with \texttt{git checkout}, declared as \texttt{revert}. 
+Since the edit was declared an experiment, the checker found nothing to revert and flagged both calls. 
+Yet the declared reasons describe a sound check.
+
+\emph{Recap.} On a real-world security task, most declarations are consistent, and side-effects help auditors to concentrate on the most sensitive operations to review. The complexity of the task also highlights areas for further engineering improvement of the prototype.
 
 \section{Related Work}
 
 \noindent\emph{Intent integrity and guardrails.}
 % Securing LLM Agents Need Intent-to-Execution Integrity
-Qu et al.~\cite{Qu2026SecuringLA} argue that agent security requires an end-to-end property stating when execution faithfully reflects the user's intent, by analogy with compiler correctness. Contrary to their position paper; we implement a harness that captures the agent's own intent at every tool call and evaluate it.
+Qu et al.~\cite{Qu2026SecuringLA} argue that agent security requires an end-to-end property stating when execution faithfully reflects the user's intent, by analogy with compiler correctness. Contrary to their position paper, we implement a harness that captures the agent's own intent at every tool call and evaluate it.
 % Safeguarding LLM Agents from Misalignment through Provenance Analysis, ASE 2026
-She et al.~\cite{She2026SafeguardingLA} present ProvenanceGuard, which blocks a proposed tool call by inferring alignment with the user's intent from the context. On the contrary, we require the agent to declare the type and reason of each act and make that declaration the object of verification.
+She et al.~\cite{She2026SafeguardingLA} present ProvenanceGuard, which blocks a proposed tool call by inferring alignment with the user's intent from the context. In contrast, we require the agent to declare the type and reason of each act and make that declaration the object of verification.
 % Enforcing Temporal Constraints for LLM Agents, boring rewriterule and temporal logic in the contextof coding agents
 Kamath et al.~\cite{Kamath2025EnforcingTC} present Agent-C, which enforces formal temporal safety properties on sequences of tool calls. Their policies are expressed over raw tool calls; our policies use the declared type of each command.
 
 \noindent\emph{Faithfulness of self-reports.}
 
 % Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting
-Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can misrepresent the true reason for a model's answer. \toolname does not assume the declarations are truthful, it checks them falsifiably based on the comparison of the epistemic act type against observed effects.
+Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can misrepresent the true reason for a model's answer. \toolname does not assume the declarations are truthful; it checks them falsifiably based on the comparison of the epistemic act type against observed effects.
 % Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation
 Baker et al.~\cite{Baker2025MonitoringRM} show that a weaker LLM reading the chain of thought of a frontier reasoning model detects reward hacking in agentic coding far better than one reading actions alone. Their monitored signal is free-form reasoning; ours is a short, typed declaration whose act type can be checked symbolically against observed effects.
  
@@ -481,43 +518,36 @@ Baker et al.~\cite{Baker2025MonitoringRM} show that a weaker LLM reading the cha
 % Reliable Weak-to-Strong Monitoring of LLM Agents
 Kale et al.~\cite{Kale2025ReliableWM} red-team LLM monitors of agent trajectories and find that an agent aware of being monitored substantially degrades monitor reliability. Their monitors read unstructured natural language trajectories; ours read typed, justified acts, which gives the monitor an explicit claim to check against the command.
 % Constitutional Black-Box Monitoring for Scheming in LLM Agents
-Storf et al.~\cite{Storf2026ConstitutionalBM} build black-box LLM monitor, optimized on synthetic trajectories and evaluated on ControlArena. They observe the agent from outside; we change the core harness so that every action carries a checkable statement of intent.
+Storf et al.~\cite{Storf2026ConstitutionalBM} build a black-box LLM monitor, optimized on synthetic trajectories and evaluated on ControlArena. They observe the agent from outside; we change the core harness so that every action carries a checkable statement of intent.
 % AgentSight: System-Level Observability for AI Agents Using eBPF
 Zheng et al.~\cite{zheng2025agentsight} present AgentSight, which observes agents from outside by correlating intercepted LLM traffic with kernel events via eBPF. It reconstructs intent after the fact, whereas \toolname makes the agent declare the type and reason of each action before it executes.
 
 \noindent\emph{Deception, sabotage, and reward hacking.}
 % Are Your Agents Upward Deceivers?
-Guo et al.~\cite{Guo2025AreYA} measures deception on 200 tasks across 11 LLMs. Their benchmark measures the problem; \toolname is a mitigation based on declared intents.
+Guo et al.~\cite{Guo2025AreYA} measure deception on 200 tasks across 11 LLMs. Their benchmark measures the problem; \toolname is a mitigation based on declared intents.
 % Coding with "Enemy": Can Human Developers Detect AI Agent Sabotage?
-Ye et al.~\cite{Ye2026CodingW} find that 94\% of human developers fail to detect sabotage by a coding agent. The epistemic agent does not require human guidance, the properties are automatically checked.
+Ye et al.~\cite{Ye2026CodingW} find that 94\% of human developers fail to detect sabotage by a coding agent. The epistemic agent does not require human guidance: the properties are automatically checked.
 
 \noindent\emph{Provenance and audit trails.}
 % PROV-AGENT: Unified Provenance for Tracking AI Agent Interactions in Agentic Workflows
-Souza et al.~\cite{Souza2025PROVAGENTUP} present PROV-AGENT, which record prompts, responses, and decisions of agents in scientific workflows. It records what happened not why; the epistemic journal additionally records why each action was taken, in a closed vocabulary, machine-checkable vocabulary.
+Souza et al.~\cite{Souza2025PROVAGENTUP} present PROV-AGENT, which records prompts, responses, and decisions of agents in scientific workflows. It records what happened not why; the epistemic journal additionally records why each action was taken, in a closed, machine-checkable vocabulary.
 % From Agent Traces to Trust: A Survey of Evidence Tracing and Execution Provenance in LLM Agents
-Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. To the best of our knowlege, \toolname is the first instance in which justification is mandatory for all tool calls.
+Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. To the best of our knowledge, \toolname is the first instance in which justification is mandatory for all tool calls.
 
 
 
 \section{Conclusion}
 
-Agents change the world through tool calls, and a tool call alone is poor signal for guardraling and forensics. A reviewer of agent work today sees what a coding agent did, but not why. \toolname makes the harness ask for the why: every command carries a declared type and reason, recorded before it runs and checked against the effects it produces. From this design, \toolname derives guardrails while the agent runs and enables forensics afterward. On impossible tasks, our design exposed \EtwoExposureRate{} of the reward-hacking runs through their own declared reasons. On real exploit-writing tasks, the declarations turned edits of the contract under test from apparent tampering into documented experiments. D
+Agents change the world through tool calls, and a tool call alone is a poor signal for guardrailing and forensics. A reviewer of agent work today sees what a coding agent did, but not why. \toolname makes the harness ask for the why: every command carries a declared type and reason, recorded before it runs and checked against the effects it produces. From this design, \toolname derives guardrails while the agent runs and enables forensics afterward. On impossible tasks, our design exposed \EtwoExposureRate{} of the reward-hacking runs through their own declared reasons. On real exploit-writing tasks, the declarations turned edits of the contract under test from apparent tampering into documented experiments.
 
-Declarations do not make an agent honest, but they turn tool calls into something that the harness can test. As agents gain ever more autonomy and connectivity, we see a checkable statement of intent attached to every action as fundamental building block for replacing trust with mechanized verification.
+Declarations do not make an agent honest, but they turn tool calls into something that the harness can test. As agents gain ever more autonomy and connectivity, we see a checkable statement of intent attached to every action as a fundamental building block for replacing trust with mechanized verification.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
 
 \begin{comment}
-\begin{IEEEbiography}{First A. Author}{\,}All biographies are limited to one paragraph, following the structure given here. For features, provide each author's current role and institution (to match the first page of the article); three very brief current research interests; highest degree, topic, and awarding institution (do not include year); professional memberships, such as the IEEE Computer Society and any grade information; and contact information in the form of an email address. For departments, provide each author's current role, institution, and contact information in the form of an email address. Examples are below. \vadjust{\vfill\pagebreak}
-\end{IEEEbiography}
 
-\begin{IEEEbiography}{Second B. Author Jr.}{\,} is .. \vspace*{8pt}
-\end{IEEEbiography}
-
-\begin{IEEEbiography}{Third C. Author III} {\,} is ..
-\end{IEEEbiography}
 \end{comment}
 
 
