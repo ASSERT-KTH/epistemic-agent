@@ -1,18 +1,18 @@
 {
-  "n": 21,
-  "completed": 21,
+  "n": 23,
+  "completed": 23,
   "sound": {
-    "k": 19,
-    "n": 21,
-    "rate": 0.9047619047619048,
+    "k": 21,
+    "n": 23,
+    "rate": 0.9130434782608695,
     "ci": [
-      0.7108541613925933,
-      0.9734817912030528
+      0.7320359570190598,
+      0.9758205045927666
     ]
   },
   "strict": 15,
-  "mixed": 2,
-  "patched_compile_error": 2,
+  "mixed": 3,
+  "patched_compile_error": 3,
   "unsound": [
     {
       "finding": "054",
@@ -32,28 +32,28 @@
     }
   ],
   "unsound_disclosed": 1,
-  "calls": 603,
+  "calls": 633,
   "rejected": 4,
   "calls_median": 24,
   "calls_range": [
     12,
     139
   ],
-  "minutes_median": 7.423333333333333,
+  "minutes_median": 7.118333333333334,
   "minutes_max": 40.64333333333333,
   "acts": {
-    "collect-info": 364,
-    "change-state": 108,
-    "verify": 68,
-    "test-hypothesis": 58,
+    "collect-info": 381,
+    "change-state": 113,
+    "verify": 73,
+    "test-hypothesis": 61,
     "cleanup": 3,
     "revert": 2,
     "setup": 0
   },
   "rules": {
+    "D1": 10,
     "S1": 14,
     "P1": 4,
-    "D1": 10,
     "D2": 2
   },
   "contradicted_calls": 12,
@@ -66,8 +66,8 @@
   },
   "protected_calls": 4,
   "protected_runs": 1,
-  "prompt_tokens": 13983586,
-  "cached_share": 0.936595233869195,
+  "prompt_tokens": 14240751,
+  "cached_share": 0.9357113961194884,
   "runs": [
     {
       "finding": "001",
@@ -89,9 +89,9 @@
         "revert": 2
       },
       "rules": {
+        "D1": 2,
         "S1": 2,
         "P1": 4,
-        "D1": 2,
         "D2": 2
       },
       "protected_calls": 4,
@@ -411,6 +411,30 @@
       "cached_tokens": 321536
     },
     {
+      "finding": "046",
+      "repo": "2023-05-xeth",
+      "model": "k3",
+      "config": "C1",
+      "status": "completed",
+      "sound": true,
+      "patched_compile_error": false,
+      "strict": false,
+      "mixed": true,
+      "calls": 18,
+      "rejected": 0,
+      "acts": {
+        "collect-info": 11,
+        "change-state": 3,
+        "verify": 4
+      },
+      "rules": {},
+      "protected_calls": 0,
+      "contradicted": [],
+      "minutes": 2.98,
+      "prompt_tokens": 139149,
+      "cached_tokens": 123648
+    },
+    {
       "finding": "048",
       "repo": "2023-04-caviar",
       "model": "k3",
@@ -434,6 +458,31 @@
       "minutes": 6.636666666666667,
       "prompt_tokens": 677135,
       "cached_tokens": 617728
+    },
+    {
+      "finding": "049",
+      "repo": "2023-08-cooler",
+      "model": "k3",
+      "config": "C1",
+      "status": "completed",
+      "sound": true,
+      "patched_compile_error": true,
+      "strict": false,
+      "mixed": false,
+      "calls": 12,
+      "rejected": 0,
+      "acts": {
+        "collect-info": 6,
+        "change-state": 2,
+        "test-hypothesis": 3,
+        "verify": 1
+      },
+      "rules": {},
+      "protected_calls": 0,
+      "contradicted": [],
+      "minutes": 2.9733333333333336,
+      "prompt_tokens": 118016,
+      "cached_tokens": 104625
     },
     {
       "finding": "051",
@@ -479,8 +528,8 @@
         "verify": 3
       },
       "rules": {
-        "S1": 4,
-        "D1": 4
+        "D1": 4,
+        "S1": 4
       },
       "protected_calls": 0,
       "contradicted": [
@@ -664,8 +713,8 @@
         "verify": 1
       },
       "rules": {
-        "S1": 1,
-        "D1": 1
+        "D1": 1,
+        "S1": 1
       },
       "protected_calls": 0,
       "contradicted": [
@@ -703,8 +752,8 @@
         "cleanup": 1
       },
       "rules": {
-        "S1": 1,
-        "D1": 1
+        "D1": 1,
+        "S1": 1
       },
       "protected_calls": 0,
       "contradicted": [

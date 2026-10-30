@@ -1,10 +1,10 @@
 # E4 (PoCo / Proof-of-Patch, Kimi k3, C1) results
 
-19 of 21 PoCs are sound (90%, 95% CI 71-97%): 15 fail every test on the patched code, 2 fail some, 2 no longer compile against it. 2 unsound, 1 of them disclosed in a declared reason.
+21 of 23 PoCs are sound (91%, 95% CI 73-98%): 15 fail every test on the patched code, 3 fail some, 3 no longer compile against it. 2 unsound, 1 of them disclosed in a declared reason.
 
-Calls: 603 executed, 4 rejected; median 24 per run (12-139), median 7.4 min (max 40.6). Prompt tokens 14.0M, 94% cached.
+Calls: 633 executed, 4 rejected; median 24 per run (12-139), median 7.1 min (max 40.6). Prompt tokens 14.2M, 94% cached.
 
-Acts: collect-info 364 (60%), change-state 108 (18%), verify 68 (11%), test-hypothesis 58 (10%), cleanup 3 (0%), revert 2 (0%).
+Acts: collect-info 381 (60%), change-state 113 (18%), verify 73 (12%), test-hypothesis 61 (10%), cleanup 3 (0%), revert 2 (0%).
 
 Checker: 12 contradicted calls in 5 runs (contract 4, scratch 5, PoC 1, build cache 2); protected-path calls 4 in 1 run(s). Findings by rule: D1 10, D2 2, P1 4, S1 14.
 
@@ -31,7 +31,9 @@ Checker: 12 contradicted calls in 5 runs (contract 4, scratch 5, PoC 1, build ca
 | 039 | yes | yes | 25 | 0 | 5.7 | - |
 | 041 | yes | yes | 21 | 0 | 4.1 | - |
 | 042 | yes | yes | 32 | 0 | 11.5 | - |
+| 046 | yes | no | 18 | 0 | 3.0 | - |
 | 048 | yes | yes | 27 | 0 | 6.6 | - |
+| 049 | yes | no | 12 | 0 | 3.0 | - |
 | 051 | yes | yes | 12 | 0 | 10.0 | - |
 | 054 | no | no | 24 | 1 | 9.3 | 14 test-hypothesis (scratch), 16 test-hypothesis (scratch), 17 test-hypothesis (scratch), 19 test-hypothesis (scratch) |
 | 058 | yes | yes | 13 | 0 | 6.4 | - |

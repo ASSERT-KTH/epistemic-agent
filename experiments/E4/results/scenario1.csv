@@ -11,7 +11,9 @@ k3,C1,033,2023-04-caviar,completed,True,True,True,test_failure,True,False,False,
 k3,C1,039,2024-03-axis-finance,completed,True,True,True,test_failure,True,False,False,False,1,9,25,0,5,,0,,,,,,341.8,,48f4d6de1356e6e8c37ff74f51b8b82b4811c7e5,True
 k3,C1,041,2024-03-axis-finance,completed,True,True,True,test_failure,True,False,False,False,1,13,21,0,2,,0,,,,,,244.1,,48f4d6de1356e6e8c37ff74f51b8b82b4811c7e5,True
 k3,C1,042,2025-07-cap,completed,True,True,True,test_failure,True,False,False,False,1,5,32,0,4,,0,,,,,,687.8,,48f4d6de1356e6e8c37ff74f51b8b82b4811c7e5,True
+k3,C1,046,2023-05-xeth,completed,True,True,True,test_failure,True,False,False,False,3,11,18,0,4,,0,,,,,,178.8,,b28f47cf1bf54441727930ff13230c8455e226b2,False
 k3,C1,048,2023-04-caviar,completed,True,True,True,test_failure,True,False,False,False,1,15,27,0,7,,0,,,,,,398.2,,48f4d6de1356e6e8c37ff74f51b8b82b4811c7e5,True
+k3,C1,049,2023-08-cooler,completed,True,True,True,compile_error,True,False,False,False,2,13,12,0,4,,0,,,,,,178.4,,e692869974f5dc9f154df2c8ad4152b2d92c3da5,False
 k3,C1,051,2023-09-centrifuge,completed,True,True,True,test_failure,True,False,False,False,3,18,12,0,1,,0,,,,,,601.7,,48f4d6de1356e6e8c37ff74f51b8b82b4811c7e5,True
 k3,C1,054,2022-05-cally,completed,True,True,False,,False,False,False,False,2,13,24,1,7,,0,,,,,,556.0,,48f4d6de1356e6e8c37ff74f51b8b82b4811c7e5,True
 k3,C1,058,2022-06-putty,completed,True,True,True,test_failure,True,False,False,False,3,16,13,0,3,,0,,,,,,386.7,,48f4d6de1356e6e8c37ff74f51b8b82b4811c7e5,True

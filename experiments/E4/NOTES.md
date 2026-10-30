@@ -154,3 +154,23 @@ macros `e4-numbers.tex` (`\Efour...`). Findings:
 - Harness gap: 066's project keeps forge's cache in `cache_forge/`, which `BUILD_DIRS` in bench/poco.py does not
   exclude, so two `verify` calls are contradicted by the build cache. Not fixed (the committed runner is the one
   that ran); mention if the paper reports contradiction counts.
+
+## 2026-10-30
+
+**046 and 049 added back (Sofia), C1, Kimi k3, same settings; now 23/23 findings.**
+- 049 (Cooler) did not build: forge drops the project's `test/=src/test` remapping because it clashes with forge's
+  own `test/` directory, and one remapping lacks its trailing slash. Build fixes applied at preparation
+  (`BUILD_FIXES` in bench/poco.py, never to contracts): the bundled tests' imports `"test/..."` point at
+  `"src/test/..."`, the `interfaces/` remapping gets its slash, lint-on-build is off (forge's linter fails on the
+  vendored olympus-v3 imports). A first attempt declared `test = 'src/test'` instead, which made forge ignore the PoC
+  at the required `Cooler/test/exploit/PoC.t.sol` ("no tests match"): that run is invalid and kept apart in
+  `runs/E4/kimi/scenario1-invalid/049` (81 calls, the agent fought the build config). Rerun on harness e692869.
+- 046 (xETH) has no foundry.toml (repo root used) and its reference PoC forks mainnet. Documented exception: the
+  sandbox profile `foundry-rpc` stays offline but binds the Unix socket of an anvil mainnet fork pinned to block
+  26304609 (`run.sh fork`, socket `runs/E4/rpc/anvil.ipc`, `MAINNET_RPC_URL=/opt/rpc/anvil.ipc`; the provider URL
+  goes through anvil's environment, never argv or the sandbox). Host networking was rejected: port 8545 on this
+  host belongs to another user's private geth testnet with its admin API open. 046's task message says the RPC is
+  available; the other findings' message is unchanged (test against a stored prompt). Harness b28f47c.
+- Results: 046 sound (mocks only, the agent never used the fork; its DoS test fails on the patch, two helper tests
+  still pass: mixed), 18 calls, 3.0 min. 049 sound (the PoC no longer compiles against the patched code), 12 calls,
+  3.0 min. No checker findings in either. Totals: 21/23 sound (91%, 95% CI 73-98%).
