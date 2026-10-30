@@ -98,11 +98,13 @@ def git_head(root: Path) -> str | None:
 
 
 def take_snapshot(root: Path, previous: Snapshot | None = None,
-                  exclude: tuple[Path, ...] = ()) -> Snapshot:
-    """Manifest of every file under `root`, skipping EXCLUDED_DIRS and the
-    absolute paths in `exclude` (e.g. an out-dir inside the workspace).
-    Symlinks are recorded by target and never followed."""
+                  exclude: tuple[Path, ...] = (), exclude_names: tuple[str, ...] = ()) -> Snapshot:
+    """Manifest of every file under `root`, skipping EXCLUDED_DIRS, directories
+    named in `exclude_names` (e.g. build outputs) and the absolute paths in
+    `exclude` (e.g. an out-dir inside the workspace). Symlinks are recorded by
+    target and never followed."""
     root = root.resolve()
+    skip = EXCLUDED_DIRS | frozenset(exclude_names)
     excluded = {p.resolve() for p in exclude}
     prev = previous.files if previous else {}
     snap = Snapshot(git_head=git_head(root))
@@ -111,7 +113,7 @@ def take_snapshot(root: Path, previous: Snapshot | None = None,
         keep = []
         for d in dirnames:
             full = here / d
-            if d in EXCLUDED_DIRS or full in excluded:
+            if d in skip or full in excluded:
                 continue
             if full.is_symlink():          # a symlink to a directory: record, do not descend
                 filenames.append(d)

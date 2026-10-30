@@ -118,3 +118,23 @@ def test_scoring_runs_are_capped_too(tmp_path):
     (tmp_path / "t.py").write_text("x = bytearray(3 * 1024 ** 3)\n")
     proc = bwrap_sandbox.run("python t.py", tmp_path, 30)
     assert proc.returncode != 0 and "MemoryError" in proc.stderr
+
+
+FORGE = bwrap_sandbox.FOUNDRY_BIN / "forge"
+
+
+@pytest.mark.skipif(not FORGE.exists(), reason="forge not installed")
+def test_foundry_profile_has_forge_and_no_network(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    ea._configure(tmp_path / "out", sandbox="bwrap-foundry", exclude_dirs=("out", "cache"))
+    try:
+        ea.t_bash("forge --version && echo $XDG_DATA_HOME && ls /opt/foundry-data/svm | head -1 && "
+                  "python3 -c \"import socket; socket.create_connection(('1.1.1.1', 53), 3)\"",
+                  "collect-info", REASON)
+        text = out(read_journal(ea)[-1])
+    finally:
+        ea._configure(None)
+    assert "forge Version" in text and "/opt/foundry-data" in text
+    assert "Network is unreachable" in text or "OSError" in text
