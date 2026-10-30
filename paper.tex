@@ -156,7 +156,7 @@ All three are fundamentally limited, because a tool call does not carry its inte
 
 Rules or LLM monitors on command text cannot tell the two apart. Shell commands are open-ended, and the same malicious effect can be written in unboundedly many ways. A log records what happened but not why, so a reviewer must reconstruct intent from effects. Without a trustworthy account of intent, controlling and reviewing agent work is fundamentally limited. Regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record of what was done and why, cannot accept agent work at face value.
 
-We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model declares what kind of action it is, and why. This information is guaranteed to be present by the harness design. From there, the harness can check what the command actually did against the declared intention. 
+We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model declares what kind of action it is, and why. This information is guaranteed to be present by the harness design. From there, the harness can check what the command actually did against the declared intent. 
 We call our prototype implementation the epistemic agent, or \toolname for short.
 
 This design supports automatic checking.
@@ -214,7 +214,7 @@ checker: contradicted: declared
 
 \section{Concept: The Epistemic Agent}
 
-Today's coding agents have very low transparency about the intention of the underlying language model.
+Today's coding agents have very low transparency about the intent of the underlying language model.
 We propose the ``epistemic agent design'' to solve this problem.
 
 The epistemic agent makes intent first class in the agent design: intents become part of the tool interface, at the point where the agent acts.
@@ -457,9 +457,6 @@ Total           & 3620 & 137 & 1377 & 1801 & 312 & 7247 \\
 
 
 
-
-  
-
 \input{listings/E4}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -475,7 +472,6 @@ The agent receives the vulnerable project and the report, and its task is to wri
 A PoC is \emph{sound} if it succeeds on the vulnerable code and fails on a patched version of the smart contract.
 We run Kimi K3 once per task, with a 45-minute timeout in the benchmark's sandbox.
 
-% \input{listings/E4}
 
 \subsection{Experimental Results}
 As shown in the original paper~\cite{Andersson2026PoCo}, an agent with a strong model can solve the tasks:
