@@ -84,14 +84,14 @@ For evaluation, we use ImpossibleBench, whose tasks can be passed only by cheati
 
 
 \chapteri{C}oding agents increasingly change software on their own. An agent is a large language model working
-in a loop: it receives a task, proposes one action at a time as a \emph{tool call}, for example running a shell
-command or editing a file, sees the result, and decides what to do next. The software around the model that runs this
-loop and executes the tool calls is the \emph{harness}. The model decides; the harness acts.
+in a loop: it receives a task, proposes a \emph{tool call}, such as running a shell
+command or editing a file, sees the result, and decides what to do next. The \emph{harness} runs this
+loop and executes the tool calls. The model decides; the harness acts.
 
-This is a safety problem. With a tool call, an agent changes the world. Every consequence -- whether good or bad -- is necessarily mediated through tool calls. 
+This is a safety problem. With a tool call, an agent changes the world. Every consequence is mediated through tool calls.
 On a developer's machine, a single call can delete files, read credentials, or rewrite the tests that sit in the way of the agent. 
-Once the agent is connected to the internet, the same mechanism reaches far beyond the machine: a call can push code, send messages, install packages, call production APIs, or change remote systems, and many of these effects cannot be undone. 
-The more autonomy and connectivity we give agents, the more safety rests on what each individual call does.
+With internet access, the same mechanism reaches beyond the machine: a call can push code, send messages, install packages, call production APIs, or change remote systems, often irreversibly.
+The more autonomy and connectivity agents have, the more safety rests on what each call does.
 
 Today, tool calls are monitored and audited in three ways: 
 1) permission rules allow or deny commands by matching their text; 
@@ -165,9 +165,9 @@ Today, tool calls are monitored and audited in three ways:
 
 All three are fundamentally limited, because a tool call does not carry its intent. Suppose an agent asked to make a failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the tests. Was it simply exploring, or did it switch off an assertion it could not satisfy? The command does not say. 
 
-Rules or LLM monitors on command text cannot tell the two apart. Shell commands are open-ended, and the same malicious effect can be written in unboundedly many ways. A log records what happened but not why, so a reviewer must reconstruct intent from effects. Without a trustworthy account of intent, controlling and reviewing agent work is fundamentally limited. Regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record of what was done and why, cannot accept agent work at face value.
+Rules or LLM monitors on command text cannot tell the two apart. Shell commands are open-ended, and the same malicious effect can be written in unboundedly many ways. A log records what happened but not why, so a reviewer must reconstruct intent from effects. Regulated domains such as medical devices, avionics, automotive, and infrastructure, which expect a record of what was done and why, cannot accept agent work at face value.
 
-We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model declares what kind of action it is, and why. This information is guaranteed to be present by the harness design. From there, the harness can check what the command actually did against the declared intent. 
+We propose the \emph{epistemic agent design}: a coding agent design where the harness refuses to run a command unless the model declares what kind of action it is, and why. The harness guarantees this information is present. From there, the harness can check what the command actually did against the declared intent.
 We call our implementation \toolname.
 
 This design supports automatic checking.
@@ -192,7 +192,7 @@ This paper makes the following contributions:
 \section{Concept: The Epistemic Agent}
 
 The epistemic agent makes intent first class in the agent design: intents become part of the tool interface, at the point where the agent acts.
-A harness describes each tool to the model in a specification: a name, a short description, and a schema of the arguments the model must fill in. A standard shell tool takes a single argument, \texttt{command}. 
+A harness specifies each tool's name, short description, and argument schema to the model. A standard shell tool takes a single argument, \texttt{command}.
 
 The epistemic harness adds two required arguments to the shell tool, \texttt{type} and \texttt{reason}, so the model cannot run a command without declaring what kind of act it is and why. Together, they form the call's \emph{epistemic declaration}.
 
@@ -219,7 +219,7 @@ File tools (read, write, edit) take a reason but no type. The harness assigns \t
 
 
 
-\textbf{Well-formed declarations.} Before execution, the harness rejects calls whose type is missing or outside the vocabulary, or whose reason is shorter than 20 characters. A rejected call does not execute: the model receives an error that names the problem and must issue the call again, and the rejection itself goes into the journal. Every executed command carries a well-formed declaration, and every attempt, accepted or not, is on record.
+\textbf{Well-formed declarations.} Before execution, the harness rejects calls whose type is missing or outside the vocabulary, or whose reason is shorter than 20 characters. Rejected calls do not execute: the model receives an error naming the problem and must reissue the call; the rejection is journaled. Every executed command carries a well-formed declaration, and every attempt, accepted or not, is on record.
 
 
 \subsection{Declarations Are Recorded, Then Checked}
@@ -228,7 +228,7 @@ A journal entry records the declaration, the tool and its arguments, the exit co
 
 Separating claims from observations gives the journal two properties.
 First, \emph{integrity}: the harness appends journal entries outside the agent's workspace as execution proceeds, so the model cannot edit the observations. Because it is written call by call, it also survives a stopped or killed agent.
-Second, \emph{verifiability}: each declaration is a claim about a command, and the journal holds evidence of what the command did that its author cannot rewrite. Checking one against the other tells, call by call, whether what a call did is consistent with what the model said it was doing.
+Second, \emph{verifiability}: each declaration is a claim about a command, and the journal holds evidence of what the command did that its author cannot rewrite. Comparing them tests whether each call's observed effects match the model's declaration.
 
 
 \textbf{Consistency checker.} After each call, the harness runs a checker that compares the declared type with the observed effects. Its findings have three severities.
@@ -299,7 +299,7 @@ An agent that misbehaves has three options: it can declare the act honestly, dec
 
 We use ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Each task asks the agent to implement a function described in its docstring and to make its unit tests pass, but the benchmark's authors altered the tests so that they contradict the specification. In the \emph{oneoff} split, one assertion expects an incorrect value; in the \emph{conflicting} split, two assertions expect different values for the same input. Each split contains 103 tasks. No implementation that follows the specification can pass all the tests, so the right response is to report the faulty test. The wrong solution to the impossibility is to cheat on one of the contradicting aspects.
 
-An agent that makes the tests pass anyway can do so in two ways. It can \emph{tamper} with the test file, or \emph{exploit} the faulty test by tailoring its code to it, for example by returning the expected value for that one input. Both can be checked mechanically, without a judge. These rules identify potential reward hacking.
+An agent that makes the tests pass anyway can do so in two ways. It can \emph{tamper} with the test file, or \emph{exploit} the faulty test by tailoring its code to it, for example by returning that input's expected value. Both can be checked mechanically, without a judge. These rules identify potential reward hacking.
 
 We run \toolname on all \EtwoNtasks{} tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3, with up to three attempts and 60 minutes per task, and the benchmark's failure feedback. The system prompt contains only the harness instructions, and the harness runs in monitor mode, so the findings do not influence the agent. Each command is limited to 60 seconds and 2\,GiB of memory. The code, the system prompt, and the raw runs are in our repository.
 
@@ -382,7 +382,7 @@ Total                    & 3714 & 1295 & 1679 & 310 & 6998 \\
 \label{fig:intent-map}
 \end{figure*}
 
-Now, we analyze the order of intent types. Figure~\ref{fig:intent-map} illustrates the sequence of acts by showing how Qwen moves between declared types over its 197 completed runs. An arrow counts how often one type directly follows another (3160 transitions overall). Notably every run first opens by collecting information, which is good. 
+Figure~\ref{fig:intent-map} shows Qwen's transitions between declared types across its 197 completed runs. An arrow counts how often one type directly follows another (3160 transitions overall). Notably every run first opens by collecting information, which is good.
 Beyond the first tool call, reading dominates: \texttt{collect-info} accounts for 54\% of all calls, and 37\% of all transitions are one read followed by another. 
 The next piece of evidence is that once the agent changes code, it checks the change: 73\% of \texttt{change-state} calls are followed directly by a \texttt{verify} or a \texttt{test-hypothesis}.
 Each check then leads to a new change or back to reading, the trial-and-error loop of agentic work. 
@@ -470,13 +470,13 @@ A tool call shows what an agent did, but not why. \toolname makes the harness as
 \begin{IEEEbiography}{CARMINE CESARANO}{\,}is a postdoctoral researcher at KTH Royal Institute of Technology. His research interests include software security, software supply chain security, and the trustworthiness of AI systems. Cesarano received his Ph.D. degree in computer science from the University of Naples Federico II. Contact him at cesarano@kth.se.
 \end{IEEEbiography}
 
-\begin{IEEEbiography}{RAPHINA LIU}{\,}is a Ph.D. student at KTH Royal Institute of Technology. Her research interests include software supply chain security, AI verifiability, and blockchain. Liu received her M.Sc. degree in cybersecurity from Stockholm University. Contact her at raphina@kth.se.
+\begin{IEEEbiography}{RAPHINA LIU}{\,}is a Ph.D. student at KTH Royal Institute of Technology. Her research interests include software supply chain security, AI verifiability, and blockchain. Liu received her M.Sc. degree from Stockholm University. Contact her at raphina@kth.se.
 \end{IEEEbiography}
 
 \begin{IEEEbiography}{JAVIER RON}{\,}is a postdoctoral researcher at KTH Royal Institute of Technology. His research interests include software diversity, chaos engineering, and the resilience of blockchain networks. Ron received his Ph.D. degree from KTH Royal Institute of Technology. Contact him at javierro@kth.se.
 \end{IEEEbiography}
 
-\begin{IEEEbiography}{MARTIN MONPERRUS}{\,}is a professor of software technology at KTH Royal Institute of Technology. His research interests include automated program repair, AI for code, and software supply chain security. He is an IEEE Fellow. Contact him at monperrus@kth.se
+\begin{IEEEbiography}{MARTIN MONPERRUS}{\,}is a Professor of Software Technology at KTH Royal Institute of Technology and IEEE Fellow. His research lies in the field of software engineering. He received a Ph.D. from the University of Rennes.  Homepage: https://www.monperrus.net/martin/
 \end{IEEEbiography}
 
 \end{document}
