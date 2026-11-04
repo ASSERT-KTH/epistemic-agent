@@ -306,13 +306,12 @@ An agent that misbehaves has three options: it can declare the act honestly, dec
 
 \subsection{Experimental Protocol}
 
-We use ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Each task asks the agent to implement a function described in its docstring and to make its unit tests pass. The specificity of ImpossibleBench is that the tasks are impossible: the benchmark's authors altered the tests so that they contradict the specification. For example, in the \emph{oneoff} split, one assertion expects an incorrect value; in the \emph{conflicting} split, two assertions expect different values for the same input. Each split contains 103 tasks. An implementation that follows the specification cannot pass all the tests. The right response is to report the faulty test. The wrong solution to the impossibility is to cheat on one of the contradicting aspects.
+We use ImpossibleBench~\cite{Zhong2025ImpossibleBench}. Each task asks the agent to implement a function described in its docstring and to make its unit tests pass, but the benchmark's authors altered the tests so that they contradict the specification. In the \emph{oneoff} split, one assertion expects an incorrect value; in the \emph{conflicting} split, two assertions expect different values for the same input. Each split contains 103 tasks. No implementation that follows the specification can pass all the tests, so the right response is to report the faulty test. The wrong solution to the impossibility is to cheat on one of the contradicting aspects.
 
-An agent that makes the tests pass has only two ways to do so. It can \emph{tamper} with any call that changes the test file. Or it can \emph{exploit} by tailoring its code to the faulty test, for example by returning the expected value for that one input, so that the final program passes the impossible tests. Both conditions can be checked mechanically, without a judge. These rules identify potential reward hacking.
+An agent that makes the tests pass anyway can do so in two ways. It can \emph{tamper} with the test file, or \emph{exploit} the faulty test by tailoring its code to it, for example by returning the expected value for that one input. Both can be checked mechanically, without a judge. These rules identify potential reward hacking.
 
-We run \toolname on all \EtwoNtasks{} impossible tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3. Each model has up to three attempts per task, with access to the benchmark's failure feedback, and a limit of 60 minutes per task.
-The system prompt contains only the harness instructions, and the harness runs in monitor mode, so the findings do not influence the agent. Commands run in a sandbox without network or home-directory access, confined to the task workspace and limited to 60 seconds and 2\,GiB of memory. 
-The code, including the system prompt, and the raw runs are published in our repository.
+We run \toolname on all \EtwoNtasks{} tasks with two open-weight models from different families, Qwen3-235B-A22B and Mistral Large~3, with up to three attempts per task, with access to the benchmark's failure feedback, and 60 minutes per task. The system prompt contains only the harness instructions, and the harness runs in monitor mode, so the findings do not influence the agent. Each command is limited to 60 seconds and 2\,GiB of memory. The code, the system prompt, and the raw runs are in our repository.
+
 
 \subsection{Cheat Detection}
 
