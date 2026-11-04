@@ -157,7 +157,7 @@ Today, tool calls are monitored and audited in three ways:
 \draw[arr] (chk.south) -- (chk.south |- jh.north);
 \draw[arr] (foren.north |- jv.south) -- (foren.north);
 \end{tikzpicture}
-\caption{The epistemic harness design, with a journal entry from an ImpossibleBench pilot run of Mistral Large~3. The model declares a type and a reason for each command; the harness observes the effects, checks the declaration against them, and journals both. Here the reason states that the call disables a test assertion, and the effects contradict the read-only type. Online, in guardrail mode, step~\step{1} refuses calls before they run; offline, the journal serves forensics.}
+\caption{The epistemic harness design, with a journal entry for the \texttt{sed} command from the introduction.}
 \label{fig:design}
 \end{figure}
 
@@ -410,6 +410,7 @@ Mistral Large~3 shows the same structure with a slightly different balance: it r
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{comment}
 \section{Behavior on a Real Security Task}
 
 We now study the behavior of the epistemic agent over a real-world security task. The task is to write a proof-of-concept (PoC) exploit for smart-contract vulnerabilities.
@@ -448,42 +449,23 @@ Yet the declared reasons describe a sound check.
 
 \emph{Recap.} On a real-world security task, most declarations are consistent, and side-effects help auditors to concentrate on the most sensitive operations to review. The complexity of the task also highlights areas for further engineering improvement of the prototype.
 
+\end{comment}
+
 \section{Related Work}
 
-\noindent\emph{Intent integrity and guardrails.}
-% Securing LLM Agents Need Intent-to-Execution Integrity
-Qu et al.~\cite{Qu2026SecuringLA} argue that agent security requires an end-to-end property stating when execution faithfully reflects the user's intent, by analogy with compiler correctness. Contrary to their position paper, we implement a harness that captures the agent's own intent at every tool call and evaluate it.
-% Safeguarding LLM Agents from Misalignment through Provenance Analysis, ASE 2026
-She et al.~\cite{She2026SafeguardingLA} present ProvenanceGuard, which blocks a proposed tool call by inferring alignment with the user's intent from the context. In contrast, we require the agent to declare the type and reason of each act and make that declaration the object of verification.
-% Enforcing Temporal Constraints for LLM Agents, boring rewriterule and temporal logic in the contextof coding agents
-Kamath et al.~\cite{Kamath2025EnforcingTC} present Agent-C, which enforces formal temporal safety properties on sequences of tool calls. Their policies are expressed over raw tool calls; our policies use the declared type of each command.
+\noindent\emph{Misbehavior of coding agents.}
+Deception has been measured on 200 tasks across 11 LLMs~\cite{Guo2025AreYA}, and 94\% of human developers fail to detect sabotage by a coding agent~\cite{Ye2026CodingW}.
 
-\noindent\emph{Faithfulness of self-reports.}
-
-% Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting
-Turpin et al.~\cite{Turpin2023LanguageMD} show that chain-of-thought explanations can misrepresent the true reason for a model's answer. \toolname does not assume the declarations are truthful; it checks them falsifiably based on the comparison of the epistemic act type against observed effects.
-% Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation
-Baker et al.~\cite{Baker2025MonitoringRM} show that a weaker LLM reading the chain of thought of a frontier reasoning model detects reward hacking in agentic coding far better than one reading actions alone. Their monitored signal is free-form reasoning; ours is a short, typed declaration whose act type can be checked symbolically against observed effects.
- 
-\noindent\emph{Monitoring agents for misbehavior.}
-% Reliable Weak-to-Strong Monitoring of LLM Agents
-Kale et al.~\cite{Kale2025ReliableWM} red-team LLM monitors of agent trajectories and find that an agent aware of being monitored substantially degrades monitor reliability. Their monitors read unstructured natural language trajectories; ours read typed, justified acts, which gives the monitor an explicit claim to check against the command.
-% Constitutional Black-Box Monitoring for Scheming in LLM Agents
-Storf et al.~\cite{Storf2026ConstitutionalBM} build a black-box LLM monitor, optimized on synthetic trajectories and evaluated on ControlArena. They observe the agent from outside; we change the core harness so that every action carries a checkable statement of intent.
-% AgentSight: System-Level Observability for AI Agents Using eBPF
-Zheng et al.~\cite{zheng2025agentsight} present AgentSight, which observes agents from outside by correlating intercepted LLM traffic with kernel events via eBPF. It reconstructs intent after the fact, whereas \toolname makes the agent declare the type and reason of each action before it executes.
-
-\noindent\emph{Deception, sabotage, and reward hacking.}
-% Are Your Agents Upward Deceivers?
-Guo et al.~\cite{Guo2025AreYA} measure deception on 200 tasks across 11 LLMs. Their benchmark measures the problem; \toolname is a mitigation based on declared intents.
-% Coding with "Enemy": Can Human Developers Detect AI Agent Sabotage?
-Ye et al.~\cite{Ye2026CodingW} find that 94\% of human developers fail to detect sabotage by a coding agent. The epistemic agent does not require human guidance: the properties are automatically checked.
+\noindent\emph{Monitoring agents.}
+LLM monitors read agent trajectories, but an agent aware of the monitor substantially degrades their reliability~\cite{Kale2025ReliableWM}; black-box monitors can be optimized on synthetic trajectories~\cite{Storf2026ConstitutionalBM}. A weaker model reading the chain of thought of a reasoning model detects reward hacking in agentic coding far better than one reading actions alone~\cite{Baker2025MonitoringRM}, yet chain-of-thought explanations can misrepresent the true reason for an answer~\cite{Turpin2023LanguageMD}. AgentSight correlates intercepted LLM traffic with kernel events~\cite{zheng2025agentsight}.
 
 \noindent\emph{Provenance and audit trails.}
-% PROV-AGENT: Unified Provenance for Tracking AI Agent Interactions in Agentic Workflows
-Souza et al.~\cite{Souza2025PROVAGENTUP} present PROV-AGENT, which records prompts, responses, and decisions of agents in scientific workflows. It records what happened not why; the epistemic journal additionally records why each action was taken, in a closed, machine-checkable vocabulary.
-% From Agent Traces to Trust: A Survey of Evidence Tracing and Execution Provenance in LLM Agents
-Wang et al.~\cite{Wang2026FromAT} survey evidence tracing and execution provenance for LLM agents, including whether tool calls were justified. To the best of our knowledge, \toolname is the first instance in which justification is mandatory for all tool calls.
+PROV-AGENT records the prompts, responses, and decisions of agents in scientific workflows~\cite{Souza2025PROVAGENTUP}, and a survey of execution provenance for LLM agents covers whether tool calls were justified~\cite{Wang2026FromAT}. These records capture what happened, not why; the epistemic journal also records why each action was taken, in a closed, machine-checkable vocabulary.
+
+\noindent\emph{Intent and policy enforcement.}
+Qu et al. argue that agent security requires intent-to-execution integrity, an end-to-end property~\cite{Qu2026SecuringLA}; ProvenanceGuard blocks a tool call by inferring its alignment with the user's intent from context~\cite{She2026SafeguardingLA}; and Agent-C enforces temporal safety properties on sequences of raw tool calls~\cite{Kamath2025EnforcingTC}.
+
+These approaches infer intent from free-form text, raw tool calls, or system events, or state intent integrity as a goal. \toolname instead makes a typed declaration of intent a mandatory part of every tool call and checks it against the effects the harness observes. To the best of our knowledge, it is the first harness in which a justification is mandatory for every tool call.
 
 
 
@@ -494,26 +476,21 @@ Agents change the world through tool calls, and a tool call alone is a poor sign
 Declarations do not make an agent honest, but they turn tool calls into something that the harness can test. As agents gain ever more autonomy and connectivity, we see a checkable statement of intent attached to every action as a fundamental building block for replacing trust with mechanized verification.
 
 \section{Biography}
-SOFIA BOBADILLA is a Ph.D. student at the KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research includes ssmart contract security and automated program repair. Bobadilla received her M.Sc. degree from University of Chile. Contact her at sofbob@kth.se
+Sofia Bobadilla is a Ph.D. student at KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research includes ssmart contract security and automated program repair. Bobadilla received her M.Sc. degree from University of Chile. Contact her at sofbob@kth.se
+
+Carmine Cesarano is a Postdoc at KTH Royal Institute of Technology. His research focuses on AI systems' trustworthiness and integrity.
 
 
-CARMINE CESARANO is a Postdoc at KTH Royal Institute of Technology. His research focuses on AI systems' trustworthiness and integrity.
-
-
-Raphina LIU is a Ph.D. student at the KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research interests include AI verifiability, blockchain, and software security. Liu received her M.Sc. degree from Stockholm University.
+Raphina Liu is a Ph.D. student at  KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research interests include AI verifiability, blockchain, and software security. Liu received her M.Sc. degree from Stockholm University.
 Contact her at raphina@kth.se.
 
-JAVIER RON is a Postdoc at the
+Javier Ron is a Postdoc at 
 KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. His research interests
 include the intersection of software engineering, distributed systems, and game development. Ron received his Ph.D degree
 from the KTH Royal Institute of Technology. Contact him at javierro@kth.se.
 
 
-MARTIN MONPERRUS is a professor of
-software technology and the 2024 Ph.D. Supervisor of the Year at the KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. His research interests include software engineering with a current focus on automatic program repair, AI on
-code, and program hardening. Monperrus received his Ph.D. from the University of Rennes. He is a Senior Member of IEEE.
-Contact him at https://www.monperrus.
-net/martin/.
+Martin Monperrus is a Professor of Software Technology at KTH Royal Institute of Technology and IEEE Fellow. His research lies in the field of software engineering. He received a Ph.D. from the University of Rennes.  Homepage: https://www.monperrus.net/martin/
 
 \balance
 \bibliographystyle{IEEEtran}
