@@ -178,8 +178,7 @@ The epistemic declaration can be used online or offline. Online, it acts as a gu
 This paper makes the following contributions:
 \begin{itemize}    
     \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every tool call. The declared intent is checked against the observed effects after each call, and can guard calls before they run (online) or be audited afterwards (offline).
-    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the journal exposes \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate); the same journals reveal the agents' workflow, and 23 real security tasks show the design at work beyond benchmarks.
-    \item \textbf{Prototype.} \toolname, an open-source implementation of the design for coding agents.
+    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the journal exposes \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate), and the same journals reveal how each agent works.
 \end{itemize}
 
 
@@ -470,13 +469,10 @@ These approaches infer intent from free-form text, raw tool calls, or system eve
 
 
 \section{Conclusion}
-
-Agents change the world through tool calls, and a tool call alone is a poor signal for guardrailing and forensics. A reviewer of agent work today sees what a coding agent did, but not why. \toolname makes the harness ask for the why: every command carries a declared type and reason, recorded before it runs and checked against the effects it produces. From this design, \toolname derives guardrails while the agent runs and enables forensics afterward. On impossible tasks, our design exposed \EtwoExposureRate{} of the reward-hacking runs through their own declared reasons. On real exploit-writing tasks, the declarations turned edits of the contract under test from apparent tampering into documented experiments.
-
-Declarations do not make an agent honest, but they turn tool calls into something that the harness can test. As agents gain ever more autonomy and connectivity, we see a checkable statement of intent attached to every action as a fundamental building block for replacing trust with mechanized verification.
+A tool call shows what an agent did, but not why. \toolname makes the harness ask: every command carries a declared type and reason, which the harness checks against the effects it observes, as a guardrail while the agent runs and as forensics afterward. On impossible tasks, the journal exposed \EtwoExposureRate{} of the reward-hacking runs, all through the agents' own declared reasons. Declarations do not make an agent honest, but they turn every tool call into a claim the harness can test. As agents gain autonomy, such checkable claims can replace trust with verification.
 
 \section{Biography}
-Sofia Bobadilla is a Ph.D. student at KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research includes ssmart contract security and automated program repair. Bobadilla received her M.Sc. degree from University of Chile. Contact her at sofbob@kth.se
+Sofia Bobadilla is a Ph.D. student at KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research includes smart contract security and automated program repair. Bobadilla received her M.Sc. degree from University of Chile. Contact her at sofbob@kth.se
 
 Carmine Cesarano is a Postdoc at KTH Royal Institute of Technology. His research focuses on AI systems' trustworthiness and integrity.
 
