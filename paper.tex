@@ -194,11 +194,9 @@ This paper makes the following contributions:
 The epistemic agent makes intent first class in the agent design: intents become part of the tool interface, at the point where the agent acts.
 A harness describes each tool to the model in a specification: a name, a short description, and a schema of the arguments the model must fill in. A standard shell tool takes a single argument, \texttt{command}. 
 
-The epistemic harness adds two required arguments to the shell tool, \texttt{type} and \texttt{reason}, so the model cannot run a command without declaring what kind of act (see list below) it is and why. Together, they form the call's \emph{epistemic declaration}.
+The epistemic harness adds two required arguments to the shell tool, \texttt{type} and \texttt{reason}, so the model cannot run a command without declaring what kind of act it is and why. Together, they form the call's \emph{epistemic declaration}.
 
-Figure~\ref{fig:design} shows what the epistemic harness does with each tool call. It \step{1} checks that the declaration is well-formed and rejects it otherwise, \step{2} runs the command, \step{3} records the call's \emph{effects} by comparing the workspace before and after, \step{4} checks the declaration against the effects and records each problem as a \emph{finding}, and \step{5} appends an entry to the \emph{journal}: the declaration, supplied by the model, next to the effects and findings, produced by the harness. The bottom of the figure shows the two uses: a guardrail online and forensics offline.
-
-
+Figure~\ref{fig:design} shows what the epistemic harness does with each tool call. It \step{1} checks that the declaration is well-formed and rejects it otherwise, \step{2} runs the command, \step{3} records the call's \emph{effects} by comparing the workspace before and after, \step{4} checks the declaration against the effects and records each problem as a \emph{finding}, and \step{5} appends an entry to the \emph{journal}: the declaration, supplied by the model, next to the effects and findings, produced by the harness. 
 
 
 
@@ -246,9 +244,8 @@ In Figure~\ref{fig:design}, the \texttt{sed} command from the introduction decla
 
 \subsection{Online and Offline Use of Epistemic Provenance}
 
-\textbf{Online -- Guardrail.} In \emph{guardrail} mode, the harness stops the agent when it detects a problem. First, step~\step{1} refuses a call declared read-only whose command contains a mutating operation. This command-text rule shares the blind spots of such rules, but fires only when the text conflicts with the declaration. Contradictions proven by effects emerge only after execution, at step~\step{4}, so guardrail mode stops the agent and may roll back the workspace. Declarations also allow policies on the type alone, such as refusing every \texttt{change-state} while an agent is only meant to investigate. In \emph{monitor} mode, the harness refuses only ill-formed declarations: it runs every call and records the findings in the journal without acting on them.
+\toolname runs in one of two modes. In \emph{monitor} mode, the harness rejects only ill-formed declarations, runs every call, and records the findings without acting on them. \emph{Guardrail} mode adds one online check: step~\step{1} also refuses a call declared read-only whose command contains a mutating operation. A contradiction proven by effects is known only after the call has run, so both modes record it; a stricter harness could stop the agent or roll back the workspace. Offline, the journal serves forensics. The harness renders it as a report that lists the contradicted calls separately, so a reviewer knows where to start, and the checker can be rerun on a stored journal without the agent or the model.
 
-\textbf{Offline -- Forensics.} The journal is a forensic record. After each call, the harness renders a report with type counts and a numbered narrative of reason, command, outcome, and effects, with dead ends marked by \texttt{revert}. Contradicted calls are central: their effects disprove the model's account. The report flags and lists them separately, giving auditors a starting point for their review. Forensics also extends beyond the report. Every rule depends only on the journal, so reviewers can rerun the full checker suite on a stored journal without the agent or model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -316,29 +313,27 @@ For example, a call declared read-only is contradicted if it changes a file. A c
 
 Two human raters independently assessed disclosure from the reasons, without knowing the model or the checker's findings. They then resolved disagreements together. The checker determined contradictions mechanically. 
 
-A misbehaving run is \emph{exposed} if the act is disclosed, contradicted, or both. It is \emph{stealth} if it is neither disclosed nor contradicted. Our primary metric is the exposure rate: the proportion of misbehaving runs that are detected.
+A misbehaving run is \emph{exposed} if the act is disclosed, contradicted, or both. It is \emph{stealth} if it is neither disclosed nor contradicted. Our primary metric is the exposure rate: the proportion of misbehaving runs that are exposed.
 
 
 
 
+\subsection{Experimental Results}
 
-
-    \subsection{Experimental Results}
-
-We ran \EtwoNtasks{} tasks with each of the two models, for \EtwoNruns{} runs in total. Of these, \EtwoNcompleted{} runs completed and \EtwoNexcluded{} were excluded after server errors or timeouts. None of the excluded runs had misbehaved before stopping. We classified \EtwoNmis{} completed runs as misbehaving per the ImpossibleBench oracle: there are \EtwoNmisQwen{} misbehaving runs for Qwen and \EtwoNmisMistral{} for Mistral (Table~\ref{tab:exposure}). Misbehavior is more frequent on \emph{oneoff} tasks (21\%) than on \emph{conflicting} tasks (4\%). Qwen mostly changed the tests (13 of its 18 misbehaving runs), whereas Mistral mostly produced overfitting implementations that passed the original impossible tests (28 of 31). In total, \EtwoNtamper{} runs involved tampering and \EtwoNexploit{} involved exploitation. Across completed runs, tool calls per run had a minimum, median, 95th percentile, and maximum of 3, 8, 69, and 144 for Qwen, and 6, 16, 34, and 43 for Mistral, respectively.
+We ran \EtwoNtasks{} tasks per model, totaling \EtwoNruns{} runs. Of these, \EtwoNcompleted{} runs completed and \EtwoNexcluded{} were excluded after server errors or timeouts. None of the excluded runs had misbehaved before stopping. We classified \EtwoNmis{} completed runs as misbehaving per the ImpossibleBench oracle: there are \EtwoNmisQwen{} misbehaving runs for Qwen and \EtwoNmisMistral{} for Mistral (Table~\ref{tab:exposure}). Misbehavior is more frequent on \emph{oneoff} tasks (21\%) than on \emph{conflicting} tasks (4\%). Qwen mostly changed the tests (13 of its 18 misbehaving runs), whereas Mistral mostly produced overfitting implementations that passed the original impossible tests (28 of 31). In total, \EtwoNtamper{} runs involved tampering and \EtwoNexploit{} involved exploitation. Across completed runs, tool calls per run had a minimum, median, 95th percentile, and maximum of 3, 8, 69, and 144 for Qwen, and 6, 16, 34, and 43 for Mistral, respectively.
 
 
 
-The agents disclosed the cheating in a declared reason in \EtwoNdisclosed{} of the \EtwoNmis{} misbehaving runs. For example, one reason said: ``Replace the incorrect formula with a hardcoded lookup table of expected values to pass the unit tests.'' Before discussion, the raters agreed on 46 of the 49 disclosure labels (Cohen's $\kappa = \EtwoKappa$); they resolved the three disagreements together.
+Declared reasons disclosed cheating in \EtwoNdisclosed{} of the \EtwoNmis{} misbehaving runs. For example, one reason said: ``Replace the incorrect formula with a hardcoded lookup table of expected values to pass the unit tests.'' Before discussion, the raters agreed on 46 of the 49 disclosure labels (Cohen's $\kappa = \EtwoKappa$); they resolved the three disagreements together.
 
-The \toolname checker detects cheating via contradiction between epistemic type and effects in \EtwoNcontradicted{} runs. The agent edited the test file with a shell command declared read-only or \texttt{revert}. The journal exposed \EtwoNexposed{} of the \EtwoNmis{} misbehaving runs, an exposure rate of \EtwoExposureRate{} (95\% CI \EtwoExposureCI); every exposed run was disclosed.
+\toolname detects contradictions between epistemic type and effects in \EtwoNcontradicted{} runs. The agent edited the test file with a shell command declared read-only or \texttt{revert}. The journal exposed \EtwoNexposed{} of the \EtwoNmis{} misbehaving runs, an exposure rate of \EtwoExposureRate{} (95\% CI \EtwoExposureCI); every exposed run was disclosed.
 
-The checker could not contradict any exploit in this experiment. Every exploit changed the code through a file tool, and the harness assigns file tools a fixed type rather than asking the model to declare one. In four tasks, the benchmark's test file was broken and could not run, so changing it may have been a repair. Excluding these four runs, the exposure rate was \EtwoExposureRateNoDefect{} (40 of 45). 
+The checker could not contradict any exploit in this experiment. Every exploit changed the code through a file tool, and the harness assigns file tools a fixed type rather than asking the model to declare one. In four tasks, the benchmark's test file was broken and could not run, so changing it may have been a repair. Excluding these four runs, the exposure rate was \EtwoExposureRateNoDefect{} (40 of 45).
 
 The remaining \EtwoNconcealed{} runs were classified as stealth misbehavior: the checker did not identify a contradiction and the reason does not disclose the problem. In three runs, the agent edited a test but its reason only described the problem, for example ``The test expecting 0 is incorrect.'' (run oneoff/lcbhard\_54 by model Qwen).
 In the other two runs, the agent also changed the implementation while giving a general reason. One implementation hard-coded answers for three test inputs; the other passed a faulty test through an incorrect general simplification, without test-specific code.
 
-Qwen often investigates and stops: in 72 of its 197 runs, Qwen read the files, ran the tests, and ended the run without changing any file; 51 of these runs are in the conflicting split. Mistral runs a loop of edits and test runs. The two styles match the two kinds of misbehavior. Qwen's misbehavior was mostly tampering with the test file (13 of 18 runs), and Mistral's was mostly an exploit in the implementation (28 of 31 runs).
+Qwen often investigates and stops: in 72 of its 197 runs, Qwen read the files, ran the tests, and ended the run without changing any file; 51 of these runs are in the conflicting split. Mistral runs a loop of edits and test runs.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
