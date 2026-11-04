@@ -20,6 +20,7 @@
 \usepackage{tikz}
 \usetikzlibrary{positioning,fit,backgrounds,arrows.meta}
 
+\newcommand{\jrow}[2]{\makebox[1.45cm][l]{#1}\parbox[t]{4.6cm}{\raggedright #2}}
 
 \jvol{XX}
 \jnum{XX}
@@ -39,7 +40,7 @@
 \usepackage{xspace}
 
 \setcounter{secnumdepth}{0}
-
+\usepackage{balance}
 
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 % Text based on partial results, to check against the final E2 data before submission.
@@ -127,12 +128,16 @@ Today, tool calls are monitored and audited in three ways:
 \node[lane] (run) at (\R,-1.75) {\step{2} \textbf{Run command}};
 \node[obs] (fx) at (\R,-3.3) {\step{3} \textbf{Tool Call Effects}\\{\scriptsize workspace changes before/after}};
 \node[check, text width=6.4cm] (chk) at (0,-5.2) {\step{4} \textbf{Check the declaration against the effects}\\{\scriptsize findings: contradiction, warning, protected}};
-\node[draw, fill=black!12, text width=6.1cm, align=left, inner sep=2pt, anchor=north] (jh) at (0,-6.3) {\step{5} \textbf{Append journal entry} \hfill {\scriptsize\ttfamily journal.jsonl}};
-\node[row, draw=orange!75!black, fill=orange!12, below=0pt of jh] (jc) {\makebox[2.1cm][l]{declaration:}type, reason};
-\node[row, draw=blue!55!black, fill=blue!6, below=0pt of jc] (jo) {\makebox[2.1cm][l]{effects:}files changed, diff};
-\node[row, draw=black!60, fill=black!6, below=0pt of jo] (jv) {\makebox[2.1cm][l]{findings:}contradiction, warning, ...};
-\node[use] (guard) at (\L,-9.1) {\textbf{Guardrail} (online)\\{\scriptsize refuse calls before they run}};
-\node[use] (foren) at (\R,-9.1) {\textbf{Forensics} (offline)\\{\scriptsize audit past trajectories}};
+\node[draw, fill=black!12, text width=6.1cm, align=left, inner sep=2pt, anchor=north] (jh) at (0,-6.3) {\step{5} \textbf{Append journal entry} \hfill {\scriptsize example}};
+\node[row, draw=black!60, fill=white, below=0pt of jh] (jx) {\jrow{command:}{sed -i '22 s/\textasciicircum/\# /' test.py\\\&\& python test.py}};
+\node[row, draw=orange!75!black, fill=orange!12, below=0pt of jx] (jc) {\jrow{type:}{test-hypothesis}};
+\node[row, draw=orange!75!black, fill=orange!12, below=0pt of jc] (jr) {\jrow{reason:}{Temporarily comment out the flawed test case (line 22) [...]}};
+\node[row, draw=blue!55!black, fill=blue!6, below=0pt of jr] (jo) {\jrow{effects:}{modified test.py}};
+\node[row, draw=black!60, fill=black!6, below=0pt of jo] (jv) {\jrow{findings:}{\textcolor{red!65!black}{contradicted}: test.py modified\\warning: command runs sed -i\\protected: test.py modified}};
+\coordinate (lx) at (\L,0); \coordinate (rx) at (\R,0);
+\path (jv.south) ++(0,-4mm) coordinate (ub);
+\node[use, anchor=north] (guard) at (lx |- ub) {\textbf{Guardrail} (online)\\{\scriptsize refuse calls before they run}};
+\node[use, anchor=north] (foren) at (rx |- ub) {\textbf{Forensics} (offline)\\{\scriptsize audit past trajectories}};
 \begin{scope}[on background layer]
 \node[draw=black!75, line width=0.9pt, fill=black!2, rounded corners=3pt, inner sep=2mm, fit=(htitle)(decl)(val)(run)(chk)(jh)(jv)] (h) {};
 \end{scope}
@@ -152,9 +157,11 @@ Today, tool calls are monitored and audited in three ways:
 \draw[arr] (chk.south) -- (chk.south |- jh.north);
 \draw[arr] (foren.north |- jv.south) -- (foren.north);
 \end{tikzpicture}
-\caption{The epistemic harness design. The model declares an intent for each command to run; the harness observes the effects, checks the claim against them, and journals both. Online, in guardrail mode, step~\step{1} refuses calls before they run; offline, the journal serves forensics.}
+\caption{The epistemic harness design, with a journal entry from an ImpossibleBench pilot run of Mistral Large~3. The model declares a type and a reason for each command; the harness observes the effects, checks the declaration against them, and journals both. Here the reason states that the call disables a test assertion, and the effects contradict the read-only type. Online, in guardrail mode, step~\step{1} refuses calls before they run; offline, the journal serves forensics.}
 \label{fig:design}
 \end{figure}
+
+
 
 All three are fundamentally limited, because a tool call does not carry its intent. Suppose an agent asked to make a failing test suite pass runs \texttt{sed -i '22 s/\^{}/\# /' test.py} and then the tests. Was it simply exploring, or did it switch off an assertion it could not satisfy? The command does not say. 
 
@@ -171,7 +178,7 @@ The epistemic declaration can be used online or offline. Online, it acts as a gu
 This paper makes the following contributions:
 \begin{itemize}    
     \item \textbf{Concept.} The epistemic agent design, in which the harness makes intent a mandatory part of every tool call. The declared intent is checked against the observed effects after each call, and can guard calls before they run (online) or be audited afterwards (offline).
-    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the journal exposes \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate); the same journals reveal the agents' workflow, and 23 real security tasks shows the design at work beyond benchmarks.
+    \item \textbf{Evaluation.} On ImpossibleBench~\cite{Zhong2025ImpossibleBench}, the journal exposes \EtwoNexposed{} of \EtwoNmis{} reward-hacking runs (\EtwoExposureRate); the same journals reveal the agents' workflow, and 23 real security tasks show the design at work beyond benchmarks.
     \item \textbf{Prototype.} \toolname, an open-source implementation of the design for coding agents.
 \end{itemize}
 
@@ -181,39 +188,6 @@ This paper makes the following contributions:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{\columnwidth}
-\footnotesize
-\begin{alltt}
-#5  command: python test.py
-intent-type: test-hypothesis
-\textcolor{orange!75!black}{reason:  Run the unit tests to verify the
-         correctness of the implementation.
-         The belief is that the implementation
-         adheres to the specification [...]}
-\textcolor{blue!55!black}{effects: none}
-checker: validated
-
-#7 command: sed -i '22 s/^/# /' test.py
-         && python test.py
-intent-type: test-hypothesis
-\textcolor{orange!75!black}{reason:  Temporarily comment out the flawed
-         test case (line 22) to verify the
-         correctness of the implementation
-         without the invalid assertion. [...]}
-\textcolor{blue!55!black}{effects: modified test.py}
-checker: contradicted: declared
-         test-hypothesis, but modified test.py
-         warning: command runs sed -i
-         protected: modified test.py
-\end{alltt}
-\end{minipage}
-\caption{Two tool calls with intent. Call 5 declares a read-only experiment and changes nothing; call 7 declares the same type but edits the test file, so the checker flags it as inconsistent.}
-\label{fig:entry}
-\end{figure}
 
 
 \section{Concept: The Epistemic Agent}
@@ -271,8 +245,7 @@ A \emph{warning} marks a call that is suspicious but not disproven: a read-only 
 A \emph{protected} finding marks any change to a file the operator marked as protected when starting the harness, such as the tests, whatever the declared type. It flags the change but does not prevent it: an honest edit of a wrong test is not a contradiction, but a reviewer should see it. 
 The full rule set is in our repository.
 
-Figure~\ref{fig:entry} illustrates the \texttt{sed} example and shows how the journal records it. Call~5, earlier in the same session, declares an experiment, runs the tests, and changes nothing; the checker finds nothing. 
-Call~7 declares the same read-only type, but its command comments out an assertion in the test file. The effects prove the declaration false, the command text alone raises a warning, and the edit touches a protected file.
+The journal entry in Figure~\ref{fig:design} records the \texttt{sed} command from the introduction. Its type declares a read-only experiment, but the effects show that the test file changed, so the checker contradicts the type; the command text raises a warning, and the edit touches a protected file.
 
 
 
@@ -520,6 +493,29 @@ Agents change the world through tool calls, and a tool call alone is a poor sign
 
 Declarations do not make an agent honest, but they turn tool calls into something that the harness can test. As agents gain ever more autonomy and connectivity, we see a checkable statement of intent attached to every action as a fundamental building block for replacing trust with mechanized verification.
 
+\section{Biography}
+SOFIA BOBADILLA is a Ph.D. student at the KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research includes ssmart contract security and automated program repair. Bobadilla received her M.Sc. degree from University of Chile. Contact her at sofbob@kth.se
+
+
+CARMINE CESARANO is a Postdoc at KTH Royal Institute of Technology. His research focuses on AI systems' trustworthiness and integrity.
+
+
+Raphina LIU is a Ph.D. student at the KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. Her research interests include AI verifiability, blockchain, and software security. Liu received her M.Sc. degree from Stockholm University.
+Contact her at raphina@kth.se.
+
+JAVIER RON is a Postdoc at the
+KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. His research interests
+include the intersection of software engineering, distributed systems, and game development. Ron received his Ph.D degree
+from the KTH Royal Institute of Technology. Contact him at javierro@kth.se.
+
+
+MARTIN MONPERRUS is a professor of
+software technology and the 2024 Ph.D. Supervisor of the Year at the KTH Royal Institute of Technology, 100 44 Stockholm, Sweden. His research interests include software engineering with a current focus on automatic program repair, AI on
+code, and program hardening. Monperrus received his Ph.D. from the University of Rennes. He is a Senior Member of IEEE.
+Contact him at https://www.monperrus.
+net/martin/.
+
+\balance
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
