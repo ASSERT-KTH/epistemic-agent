@@ -381,12 +381,11 @@ Qwen often investigates and stops: in 72 of its 197 runs, Qwen read the files, r
 
 \section{Epistemic Workflow Evidence}
 
-The journal is more than an audit trail for misbehavior. Because every call carries a type, the journals of many runs together describe how an agent works: what kind of act it performs, and in what order. We reuse the runs of the previous experiment.
+The journal is more than an audit trail for misbehavior. Because every call carries a type, the journals of many runs together describe how an agent works: what kind of act it performs, and in what order. 
 
+In the 400 completed runs, the two models made 3714 bash calls and declared 3577 of them (96.3\%) read-only: 1442 \texttt{collect-info}, 1337 \texttt{test-hypothesis}, and 798 \texttt{verify}. Only 137 bash calls (3.7\%) declared a mutating type: through the shell, the agents mostly observed, by reading and running tests. To edit code, they mainly used file tools, with 1989 calls to \texttt{str\_replace\_edit} and \texttt{write\_file} against 98 bash calls declared \texttt{change-state}. Counting file edits, 30\% of all calls changed state (2126 of 6998).
 
-Table~\ref{tab:e2-types} counts the calls of the 400 completed runs by type and tool. In total, both models made 3714 bash calls. The agents declared 3577 of them (96.3\%) as read-only. The agents declared a mutating type for 137 calls only (3.7\%): through the shell, they mostly observed, by reading and running tests. To edit code, the agents mainly used file tools: they made 1989 calls to \texttt{str\_replace\_edit} and \texttt{write\_file}, and 98 bash calls with the type \texttt{change-state}. Counting file edits, 30\% of all calls changed state (2126 of 6998).
-
-
+\begin{comment}
 \begin{table}[t]
 \caption{Calls by type and tool in the 400 completed runs. File tools have a fixed type: reads are \texttt{collect-info}, edits and writes are \texttt{change-state}.}
 \label{tab:e2-types}
@@ -414,7 +413,7 @@ Total                    & 3714 & 1295 & 1679 & 310 & 6998 \\
 \hline
 \end{tabular}
 \end{table}
-
+\end{comment}
 
 \begin{figure*}[t]
 \centering
@@ -430,38 +429,12 @@ Each check then leads to a new change or back to reading, the trial-and-error lo
 Mistral Large~3 shows the same structure with a slightly different balance: it reads less (25\% of its calls against 54\%) and spends 40\% of its transitions alternating between \texttt{change-state} and \texttt{test-hypothesis}, showing model impact on epistemic explanations. Practitioners deploying the technique would need to calibrate their epistemic guardrail and forensics processes depending on the model they use.
 
 
-\begin{comment}
-\begin{table}[t]
-\caption{Executed calls per model in the included E2 runs, by tool. Bash calls are split by the kind of the declared
-type; file tools have a fixed type, as in Table~\ref{tab:e2-types}.}
-\label{tab:e2-models}
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lrrrrrr}
-\hline
- & \multicolumn{2}{c}{Bash} & \multicolumn{3}{c}{File tool} & \\
-\cline{2-3}\cline{4-6}
-Model & read-only & mutating & read & replace & write & Total \\
-\hline
-Qwen3-235B      & 1843 &  40 &  916 &  588 & 151 & 3538 \\
-Mistral L3      & 1777 &  97 &  461 & 1213 & 161 & 3709 \\
-\hline
-Total           & 3620 & 137 & 1377 & 1801 & 312 & 7247 \\
-\hline
-\end{tabular}
-\end{table}
-\end{comment}
 
 
 
 
 
 
-
-
-
-\input{listings/E4}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Behavior on a Real Security Task}
@@ -484,7 +457,12 @@ As shown in the original paper~\cite{Andersson2026PoCo}, an agent with a strong 
 There are \EfourNcalls{} executed calls, of which 621 matched their declared type (98\%): 506 are read-only, and 115 change files as declared.
 Every run opens by reading the code, and 22 of 23 end with a \texttt{verify}. 
 A security auditor can therefore skip the calls that have no effect and instead focus on calls that provably change the smart contract.
-Figure~\ref{fig:poco-edits} shows the complete edit history of task 015: one of its four tests fails because of a bug in the agent's first PoC attempt. The next edit provides a fix, and clearly states the reason of the changes. These entries provide the auditor with focused, deeper insights on the PoC's code and the nature of the vulnerability.
+In task 015, for example, the agent declared what would refute its belief before running its PoC: ``a compilation error or failing assertion''. One of the four tests failed, because the PoC's own gas-burning loop overflowed. The next edit changed exactly that line, with a reason naming the overflow, and all four tests then passed. 
+
+
+% Dropped table for Exp 3
+% \input{listings/E4}
+
 
 \toolname identifies \EfourNcontradictedCalls{} contradictions.
 We manually analyzed all of them. They identify limitations of our prototype, which is to be expected for such a complex task.
