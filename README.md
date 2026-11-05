@@ -1,5 +1,8 @@
 # Epistemic agent
 
+This repository contains the code and data for the paper
+**"Episteme: Trustworthy Coding Agents Through Tool Call Intent"**.
+
 A coding-agent harness that makes intent a mandatory part of every tool call. Before a shell command runs, the model
 must declare what kind of act it is (a **type** from a closed vocabulary of seven) and why (a free-text **reason**).
 The harness then records what the command actually did (the **effects**, from snapshots of the workspace before and
